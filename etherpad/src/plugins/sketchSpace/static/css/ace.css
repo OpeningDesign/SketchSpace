@@ -1,4 +1,4 @@
-.sketchSpaceIsImage a {
+/*.sketchSpaceIsImage a {
   background: url("/static/html/plugins/sketchSpace/icon.png") repeat scroll 0 0 transparent;
   display: inline-block;
   font-size: 0;
@@ -9,3 +9,35 @@
 .sketchSpaceImageIsCurrent a {
   border: 5px solid red;
 }
+*/
+
+
+.sketchSpaceIsImage a {
+	display: inline-block;
+	font-size: 0;
+	height: 24px;
+	width: 89px;
+	background-color: transparent;
+	background-image: url(/static/html/plugins/sketchSpace/icon.png);
+	background-repeat: no-repeat;
+	margin-right: 4px;
+	margin-left: 4px;
+	position: relative;
+	bottom: 9px;
+	margin-bottom: -12px;
+}
+.sketchSpaceImageIsCurrent a {
+	display: inline-block;
+	font-size: 0;
+	height: 24px;
+	width: 89px;
+	background-color: transparent;
+	background-image: url(/static/html/plugins/sketchSpace/icon-active.png);
+	background-repeat: no-repeat;
+	margin-right: 4px;
+	margin-left: 4px;
+	position: relative;
+	bottom: 9px;
+	margin-bottom: -12px;
+}
+

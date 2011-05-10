@@ -1,3 +1,5 @@
+.------------sketchSpace-static-css-editorcss-original------------------------------------------------------------------------------------------- {}
+
 .noSketchSpace #padpage {
   left: 50% !important;
   width: 900px !important;
@@ -132,4 +134,528 @@ body {
 
 .editbar, .docbar, .topbar {
   overflow: hidden;
+}
+
+
+.------------sketchSpace-static-css-editorcss-modified------------------------------------------------------------------------------------------- {}
+
+#sketchSpaceEditBar .editbartable {
+position: absolute;
+left: 77px;
+width: 250px;
+height: 29px;
+}
+
+#sketchSpaceEditBar .editbarbutton {
+	width:36px;
+	background-color: white;
+	padding: 0 2px;
+	border-top-width: 1px;
+	border-bottom-width: 1px;
+	border-left-width: 1px;
+	border-top-style: none;
+	border-bottom-style: none;
+	border-left-style: solid;
+	border-top-color: #CCCCCC;
+	border-bottom-color: #CCCCCC;
+	border-left-color: #CCCCCC;
+}
+#sketchSpaceEditBar .editbarbutton img {
+border: 0 none;
+height: 29px;
+width: 36px;
+position: relative;
+top: -3px;
+}
+#sketchSpaceEditBar .editbarsavetable {
+    height: 29px;
+    position: absolute;
+    right: 29px;
+}
+
+.sketchSpace #sketchSpaceEditor {
+	background-image: url(http://dl.dropbox.com/u/7117445/od-images/outerdocbody-corner.png);
+	bottom: 0;
+	left: 0;
+	position: absolute;
+	top: 98px;
+	width: 100%;
+	background-color: white;
+	background-repeat: no-repeat;
+	background-position: -20px 0px;
+}
+#sketchSpaceOptions {
+    background: #333;
+	background-image: url(http://www.studiowikitecture.com/image/bottomgradient.png);
+	background-repeat: repeat-x;
+    border-right: 1px solid #C4C4C4;
+    border-top: 1px solid #C4C4C4;
+    bottom: 0;
+    height: 20pt;
+    left: 0;
+    overflow: auto;
+    padding: 0;
+    position: absolute;
+    right: 0;
+}
+.optionsContainer-label {
+    color: #999;
+    font-size: 14px;
+    padding-right: 4pt;
+}
+.optionsContainer-label, .optionsContainer-child {
+    display: inline-block;
+    line-height: 1em;
+    position: relative;
+    white-space: nowrap;
+	vertical-align:middle;
+}
+.optionsContainer-separator {
+	background-image: url(http://dl.dropbox.com/u/7117445/od-images/optionsContainer-separator-.png);
+	background-repeat: no-repeat;
+	padding-left: 30pt;
+	background-position: 1px 2px;
+	}
+
+
+@charset "utf-8";
+.------------tundra-modified------------------------------------------------------------------------------------------- {}
+.tundra .dijitCheckBox, .tundra .dijitCheckBoxIcon {
+    background-image: url("http://dl.dropbox.com/u/7117445/od-images/checkmark.png");
+    background-repeat: no-repeat;
+    height: 16px;
+    margin: 0 2px 0 0;
+    padding: 0;
+    width: 16px;
+}
+.tundra .dijitArrowButtonInner {
+    background: url("http://dl.dropbox.com/u/7117445/od-images/spriteArrows.png") no-repeat scroll 0 center transparent;
+    height: 7px;
+    margin: 0 4px;
+    width: 7px;
+}
+.tundra .dijitButtonText {
+    color: #FFFFFF;
+    font-size: 13px;
+    padding: 0 0.3em;
+    text-align: center;
+}
+.tundra .dijitButtonNode {
+    background: none repeat scroll 0 0 #111111;
+    border-color: #C0C0C0 #C0C0C0 #9B9B9B;
+    border-style: solid;
+    border-width: 1px;
+    padding: 0.1em 0.2em 0.2em;
+}
+.dijitToggleButton, .dijitButton, .dijitDropDownButton, .dijitComboButton {
+    margin: 0.2em;
+    position: relative;
+
+}
+.tundra .dijitInputContainer input, .tundra .dijitTextBox {
+    margin: 0 0.1em;
+	color:#ffffff;
+}
+tundra.css
+.dijitTextBox input {
+    float: left;
+}
+tundra.css
+.dijitInputInner {
+    background-color: #111111;
+    border: 0 none !important;
+    color: #FFFFFF;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    vertical-align: middle !important;
+    width: 100% !important;
+}
+
+.tundra .dijitTextBox {
+    border: 1px solid #B3B3B3;
+	background:none;
+}
+.dijitInputContainer {
+    background-color: #111111;
+    float: none !important;
+    font-size: 13px;
+    overflow: hidden;
+    position: relative;
+}
+
+
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.------------openingdesign-editorcss-original------------------------------------------------------------------------------------------- {}
+#padchat, #hdraggie, #docbarsavedrevs-outer, #docbarimpexp-outer, #docbaroptions-outer, .clearAuthorshipColors, .save, .sketchSpaceEditbarButtons, .topbar, #docbarpadtitle {
+  display: none !important;
+}
+
+#padusers {
+  height: auto !important;
+  bottom: 0 !important;
+}
+
+.sketchSpace #sketchSpaceEditBar {
+  top: 37px !important;
+}
+.sketchSpace #sketchSpaceEditor {
+  top: 73px !important;
+}
+
+#padmain {
+  top: 31px !important;
+}
+
+.sketchSpace #sketchSpaceEditorVdraggie {
+  top: 37px !important;
+}
+
+.------------openingdesign-editorcss-modified------------------------------------------------------------------------------------------- {}
+#padusers {
+    background: transparent;
+    border: 1px solid #C4C4C4;
+    height: 300px;
+    left: 0;
+    position: absolute;
+    right: 0;
+    top: 0;
+}
+.sketchSpace #sketchSpaceEditor {
+    left: 20px;
+    top: 65px !important;
+}
+.sketchSpace #sketchSpaceEditBar {
+    top: 29px !important;
+}
+
+
+#padmain {
+    top: 23px !important;
+}
+.sketchSpace #sketchSpaceEditorVdraggie {
+    background: url("http://dl.dropbox.com/u/7117445/od-images/vdraggie2.gif") no-repeat scroll center top transparent;
+    bottom: 20pt;
+    cursor: w-resize;
+    display: block;
+    margin-right: -22px;
+    position: absolute;
+    right: 50%;
+    top: 62px;
+    width: 84px;
+	height:36px;
+    z-index: 10;
+}
+
+.------------Inline Styles-Original------------------------------------------------------------------------------------------- {}
+
+
+<style type="text/css">body {
+white-space:nowrap;
+margin:0;
+}
+
+#outerdocbody {
+background-color:#fff;
+}
+
+body.grayedout {
+background-color:#eee !important;
+}
+
+#innerdocbody {
+font-size:12px;
+font-family:monospace;
+line-height:16px;
+overflow:hidden;
+background-image:url(data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==);
+padding:1px 10px 8px 1px;
+}
+
+body.doesWrap {
+white-space:normal;
+display:block !important;
+}
+
+#sidediv {
+font-size:11px;
+font-family:monospace;
+line-height:16px;
+padding-top:8px;
+padding-right:3px;
+position:absolute;
+width:20px;
+top:0;
+left:0;
+cursor:default;
+color:#FFF;
+}
+
+#sidedivinner {
+text-align:right;
+}
+
+.sidedivdelayed {
+background-color:#eee;
+color:#888 !important;
+border-right:1px solid #999;
+}
+
+.sidedivhidden {
+display:none;
+}
+
+#outerdocbody iframe {
+display:block;
+position:relative;
+left:32px;
+top:7px;
+border:0;
+width:1px;
+height:1px;
+}
+
+#outerdocbody .hotrect {
+border:1px solid #999;
+position:absolute;
+}
+
+body.mozilla,body.safari {
+display:table-cell;
+}
+
+.safari div {
+padding-right:1px;
+}
+
+p {
+margin:0;
+}
+
+#linemetricsdiv {
+position:absolute;
+left:-1000px;
+top:-1000px;
+color:#FFF;
+z-index:-1;
+font-size:12px;
+font-family:monospace;
+}
+
+#overlaysdiv {
+position:absolute;
+left:-1000px;
+top:-1000px;
+}
+
+.------------Inline Styles-Modified------------------------------------------------------------------------------------------- {}
+
+#outerdocbody {
+	background-color: #FFFFFF;
+	background-image: url(http://dl.dropbox.com/u/7117445/od-images/outerdocbody-corner.png);
+	background-repeat: no-repeat;
+	background-position: left top;
+}
+#innerdocbody {
+padding-top: 6px;
+}
+.sidedivdelayed {
+	background-color: #FFFFFF!important;
+	color: #888!important;
+	border-right: 1px solid #999;
+}
+
+
+.------------pad2_ejscss-modified------------------------------------------------------------------------------------------- {}
+/* CSS Document */
+
+body {
+	background-color: #FFFFFF;
+	background-image: none;
+}
+body, textarea {
+font-family:"Myriad Pro",Myriad,Trebuchet MS,Arial,sans-serif;
+}
+
+.docbar {
+	margin-top: 6px;
+	height: 25px;
+	position: relative;
+	zoom: 1;
+	background-color: #FFFFFF;
+	background-image: none;
+	background-repeat: repeat-x;
+	background-position: 0 -31px;
+}
+.docbarbutton {
+	border-left: 1px solid #CCCCCC;
+	color: #7689A9;
+	padding: 2px 12px;
+	white-space: nowrap;
+	font-size: 13px;
+}
+.docbarbutton.highlight {
+	background-color: transparent;
+	border-top-width: 1px;
+	border-right-width: 1px;
+	border-bottom-width: 1px;
+	border-left-width: 1px;
+	border-top-style: solid;
+	border-right-style: solid;
+	border-bottom-style: none;
+	border-left-style: solid;
+	border-top-color: #CCCCCC;
+	border-right-color: #CCCCCC;
+	border-bottom-color: #CCCCCC;
+	border-left-color: #CCCCCC;
+}
+.editbar {
+	height: 36px;
+	background-color: transparent;
+	background-image: url(http://dl.dropbox.com/u/7117445/od-images/editbar-corner.png);
+	background-repeat: no-repeat;
+	background-position: left top;
+	height: 36px;
+	left: 0;
+	position: absolute;
+	right: 0;
+	top: 0;
+	color: #444;
+}
+.editbartable {
+position: absolute;
+top: 12px;
+left: 47px;
+width: 250px;
+height: 24px;
+}
+.editbarbutton {
+	background-color: white;
+	padding: 0px 2px;
+	border-top-width: 1px;
+	border-bottom-width: 1px;
+	border-left-width: 1px;
+	border-top-style: none;
+	border-bottom-style: none;
+	border-left-style: solid;
+	border-top-color: #8B9EBA;
+	border-bottom-color: #8B9EBA;
+	border-left-color: #CCCCCC;
+}
+.editbarsavetable {
+    height: 24px;
+    position: absolute;
+    right: 29px;
+    top: 12px;
+}
+
+.menu a {
+	font-size: 13px;
+	line-height: 18px;
+	text-decoration: none;
+	color: #7689A9;
+	font-weight: normal;
+}
+#editorcontainerbox {
+	background: none repeat scroll 0 0 #FFFFFF;
+	bottom: 0;
+	left: 0;
+	overflow: hidden;
+	position: absolute;
+	right: 0;
+	top: 36px;
+	z-index: 11;
+	border-right-width: 1px;
+	border-bottom-width: 1px;
+	border-left-width: 1px;
+	border-right-style: none;
+	border-bottom-style: none;
+	border-left-style: none;
+	border-right-color: #C4C4C4;
+	border-bottom-color: #C4C4C4;
+	border-left-color: #C4C4C4;
+}
+#myuser {
+    background-attachment: scroll;
+    background-color: transparent;
+    background-image: none;
+    background-position: 0 0;
+    background-repeat: repeat;
+    height: 31px;
+    left: 13px;
+    padding: 5px;
+    position: absolute;
+    right: 0;
+    top: 15px;
+}
+#otherusers {
+    bottom: 28px;
+    left: 36px;
+    overflow: auto;
+    position: absolute;
+    right: 0;
+    top: 61px;
+}
+#padsidebar {
+    background-image: url(http://dl.dropbox.com/u/7117445/od-images/padsidebar-corner.png);
+	background-repeat: no-repeat;
+	background-position: left top;
+	bottom: 0;
+    overflow: hidden;
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 290px;
+    z-index: 11;
+}
+#vdraggie {
+    background: url("http://dl.dropbox.com/u/7117445/od-images/vdraggie2.gif") no-repeat scroll center top transparent;
+    bottom: 0;
+    cursor: w-resize;
+    position: absolute;
+    right: 268px;
+    top: 11px;
+    width: 42px;
+	height:36px;
+    z-index: 10;
+}
+
+
+.------------Broadcast-css------------------------------------------------------------------------------------------- {}
+
+#timeslider-wrapper {
+position: relative;
+left: 0px;
+right: 0px;
+top: -32px;
+z-index: 1000;
 }
