@@ -315,8 +315,12 @@ tundra.css
 
 
 .------------openingdesign-editorcss-original------------------------------------------------------------------------------------------- {}
-#padchat, #hdraggie, #docbarsavedrevs-outer, #docbarimpexp-outer, #docbaroptions-outer, .clearAuthorshipColors, .save, .sketchSpaceEditbarButtons, .topbar, #docbarpadtitle {
+#padchat, #hdraggie, #docbarsavedrevs-outer, #docbarimpexp-outer, #docbaroptions-outer, .clearAuthorshipColors, .save, .sketchSpaceEditbarButtons, .topbar, #docbarpadtitle span {
   display: none !important;
+}
+
+#docbarpadtitle {
+  background: none;
 }
 
 #padusers {
