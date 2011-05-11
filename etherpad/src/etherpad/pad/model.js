@@ -227,8 +227,39 @@ function accessPadGlobal(padId, padFunc, rwMode) {
           meta.status.dirty = true;
           meta.supportsTimeSlider = true;
 
+	  function textListToChangeset(textList) {
+	    var pool = pad.pool();
+	    var assem = Changeset.smartOpAssembler();
+	    assem.appendOpWithText('-', '\n');
+	    var newText = '';
+	    for (var i = 0; i < textList.length; i++) {
+	      assem.appendOpWithText('+', textList[i][0], textList[i][1], pool);
+	      newText += textList[i][0];
+	    }
+	    assem.appendOpWithText('+', "\n", [], pool);
+	    newText += "\n";
+	    assem.endDocument();
+	    return Changeset.pack(1, newText.length, assem.toString(), newText);
+	  }
+
+  
+
+   
+
+	  var firstChangeset = textListToChangeset([["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever"],
+							   ["sketchSpaceImageIsCurrent", "true"]]],
+						    ["\n", []],
+						    ["To open the SketchSpace area, click on either \"New blank SketchSpace\" or \"New SketchSpace(s) from PDF\".  Then click on the inserted SketchSpace icon(s).\n", []],
+						    ["\n", []],
+						    ["Other collaborators see both your text and sketches play out in real-time.", []]]);
+
+
+/*
 	  var firstChangeset = Changeset.makeSplice("\n", 0, 0,
-	    cleanText(optText || ''));
+						    "Some bold text1", [["bold", "true"]], pad.pool());
+	  log.info({XXX:firstChangeset});
+*/
+
 	  addRevision(firstChangeset, '');
 
 	  _insertPadMetaData(padId, meta);
