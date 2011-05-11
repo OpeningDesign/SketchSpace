@@ -173,7 +173,7 @@ top: -3px;
 }
 
 .sketchSpace #sketchSpaceEditor {
-	background-image: url(http://dl.dropbox.com/u/7117445/od-images/outerdocbody-corner.png);
+	background-image: url(/static/html/plugins/sketchSpace/outerdocbody-corner.png);
 	bottom: 0;
 	left: 0;
 	position: absolute;
@@ -210,7 +210,7 @@ top: -3px;
 	vertical-align:middle;
 }
 .optionsContainer-separator {
-	background-image: url(http://dl.dropbox.com/u/7117445/od-images/optionsContainer-separator-.png);
+	background-image: url(/static/html/plugins/sketchSpace/optionsContainer-separator-.png);
 	background-repeat: no-repeat;
 	padding-left: 30pt;
 	background-position: 1px 2px;
@@ -220,7 +220,7 @@ top: -3px;
 @charset "utf-8";
 .------------tundra-modified------------------------------------------------------------------------------------------- {}
 .tundra .dijitCheckBox, .tundra .dijitCheckBoxIcon {
-    background-image: url("http://dl.dropbox.com/u/7117445/od-images/checkmark.png");
+    background-image: url("/static/html/plugins/sketchSpace/checkmark.png");
     background-repeat: no-repeat;
     height: 16px;
     margin: 0 2px 0 0;
@@ -228,7 +228,7 @@ top: -3px;
     width: 16px;
 }
 .tundra .dijitArrowButtonInner {
-    background: url("http://dl.dropbox.com/u/7117445/od-images/spriteArrows.png") no-repeat scroll 0 center transparent;
+    background: url("/static/html/plugins/sketchSpace/spriteArrows.png") no-repeat scroll 0 center transparent;
     height: 7px;
     margin: 0 4px;
     width: 7px;
@@ -366,7 +366,7 @@ tundra.css
     top: 23px !important;
 }
 .sketchSpace #sketchSpaceEditorVdraggie {
-    background: url("http://dl.dropbox.com/u/7117445/od-images/vdraggie2.gif") no-repeat scroll center top transparent;
+    background: url("/static/html/plugins/sketchSpace/vdraggie2.gif") no-repeat scroll center top transparent;
     bottom: 20pt;
     cursor: w-resize;
     display: block;
@@ -484,7 +484,7 @@ top:-1000px;
 
 #outerdocbody {
 	background-color: #FFFFFF;
-	background-image: url(http://dl.dropbox.com/u/7117445/od-images/outerdocbody-corner.png);
+	background-image: url(/static/html/plugins/sketchSpace/outerdocbody-corner.png);
 	background-repeat: no-repeat;
 	background-position: left top;
 }
@@ -544,7 +544,7 @@ font-family:"Myriad Pro",Myriad,Trebuchet MS,Arial,sans-serif;
 .editbar {
 	height: 36px;
 	background-color: transparent;
-	background-image: url(http://dl.dropbox.com/u/7117445/od-images/editbar-corner.png);
+	background-image: url(/static/html/plugins/sketchSpace/editbar-corner.png);
 	background-repeat: no-repeat;
 	background-position: left top;
 	height: 36px;
@@ -629,7 +629,7 @@ height: 24px;
     top: 61px;
 }
 #padsidebar {
-    background-image: url(http://dl.dropbox.com/u/7117445/od-images/padsidebar-corner.png);
+    background-image: url(/static/html/plugins/sketchSpace/padsidebar-corner.png);
 	background-repeat: no-repeat;
 	background-position: left top;
 	bottom: 0;
@@ -641,7 +641,7 @@ height: 24px;
     z-index: 11;
 }
 #vdraggie {
-    background: url("http://dl.dropbox.com/u/7117445/od-images/vdraggie2.gif") no-repeat scroll center top transparent;
+    background: url("/static/html/plugins/sketchSpace/vdraggie2.gif") no-repeat scroll center top transparent;
     bottom: 0;
     cursor: w-resize;
     position: absolute;
