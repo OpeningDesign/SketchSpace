@@ -45,7 +45,6 @@ dojo.declare("sketchSpaceDesigner.designer.DesignerUI", [dijit._Widget, dijit._T
                   '' +
                   '                <td><img height="24" width="2" src="/static/img/jun09/pad/editbar_groupleft.gif"></td>' +
                   '                <td class="editbarbutton editbargroupsfirst tool addEllipse" unselectable="on" dojoAttachEvent="onclick:_onAddEllipse"><img title="Add ellipse" src="/static/html/plugins/sketchSpace/imgeditbar_add_circle_icon.png"></td>' +
-                  '                <td class="editbarbutton tool addPath" unselectable="on" dojoAttachEvent="onclick:_onAddPath"><img title="Add path" src="/static/html/plugins/sketchSpace/imgeditbar_add_line_icon.png"></td>' +
                   '                <td class="editbarbutton tool addPathFreehand" unselectable="on" dojoAttachEvent="onclick:_onAddPathFreehand"><img title="Add freehand path" src="/static/html/plugins/sketchSpace/imgeditbar_add_path_freehand_icon.png"></td>' +
                   '                <td class="editbarbutton tool addPathPolyline" unselectable="on" dojoAttachEvent="onclick:_onAddPathPolyline"><img title="Add polyline path" src="/static/html/plugins/sketchSpace/imgeditbar_add_path_polyline_icon.png"></td>' +
                   '                <td class="editbarbutton tool addRect" unselectable="on" dojoAttachEvent="onclick:_onAddRect"><img title="Add rectangle" src="/static/html/plugins/sketchSpace/imgeditbar_add_rect_icon.png"></td>' +
