@@ -96,10 +96,64 @@ function onRequest() {
 //----------------------------------------------------------------
 
 function getDefaultPadText() {
+/*
+  return [["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever"],
+		 ["sketchSpaceImageIsCurrent", "true"]]],
+	  ["\n", []],
+	  ["To open the SketchSpace area, click on either \"New blank SketchSpace\" or \"New SketchSpace(s) from PDF\".  Then click on the inserted SketchSpace icon(s).\n", []],
+	  ["\n", []],
+	  ["Other collaborators see both your text and sketches play out in real-time.", []]];
+*/
+
+  return [["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever1"], ["sketchSpaceImageObject:1", escape('{"parent":null,"shape":{"extType":"zimage","imageName":"cR7fZ-1VIBPdEsMzVP-BCTOJsPc-.pdf","page":15}}')], ["sketchSpaceImageIsCurrent", "true"]]],
+	  [" [Notes for Slide 1]\n\n\n", []],
+	  ["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever2"], ["sketchSpaceImageObject:2", escape('{"parent":null,"shape":{"extType":"zimage","imageName":"cR7fZ-1VIBPdEsMzVP-BCTOJsPc-.pdf","page":15}}')]]],
+	  [" [Notes for Slide 2]\n\n\n", []],
+	  ["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever3"], ["sketchSpaceImageObject:3", escape('{"parent":null,"shape":{"extType":"zimage","imageName":"cR7fZ-1VIBPdEsMzVP-BCTOJsPc-.pdf","page":15}}')]]],
+	  [" [Notes for Slide 3]\n\n\n", []],
+	  ["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever4"], ["sketchSpaceImageObject:4", escape('{"parent":null,"shape":{"extType":"zimage","imageName":"cR7fZ-1VIBPdEsMzVP-BCTOJsPc-.pdf","page":15}}')]]],
+	  [" [Notes for Slide 4]\n\n\n", []],
+	  ["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever5"], ["sketchSpaceImageObject:5", escape('{"parent":null,"shape":{"extType":"zimage","imageName":"cR7fZ-1VIBPdEsMzVP-BCTOJsPc-.pdf","page":15}}')]]],
+	  [" [Notes for Slide 5]\n\n\n", []],
+	  ["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever6"], ["sketchSpaceImageObject:6", escape('{"parent":null,"shape":{"extType":"zimage","imageName":"cR7fZ-1VIBPdEsMzVP-BCTOJsPc-.pdf","page":15}}')]]],
+	  [" [Notes for Slide 6]\n\n\n", []],
+	  ["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever7"], ["sketchSpaceImageObject:7", escape('{"parent":null,"shape":{"extType":"zimage","imageName":"cR7fZ-1VIBPdEsMzVP-BCTOJsPc-.pdf","page":15}}')]]],
+	  [" [Notes for Slide 7]\n\n\n", []],
+	  ["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever8"], ["sketchSpaceImageObject:8", escape('{"parent":null,"shape":{"extType":"zimage","imageName":"cR7fZ-1VIBPdEsMzVP-BCTOJsPc-.pdf","page":15}}')]]],
+	  [" [Notes for Slide 8]\n\n\n", []],
+	  ["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever9"], ["sketchSpaceImageObject:9", escape('{"parent":null,"shape":{"extType":"zimage","imageName":"cR7fZ-1VIBPdEsMzVP-BCTOJsPc-.pdf","page":15}}')]]],
+	  [" [Notes for Slide 9]\n\n\n", []],
+	  ["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever10"], ["sketchSpaceImageObject:10", escape('{"parent":null,"shape":{"extType":"zimage","imageName":"cR7fZ-1VIBPdEsMzVP-BCTOJsPc-.pdf","page":15}}')]]],
+	  [" [Notes for Slide 10]\n\n\n", []],
+	  ["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever11"], ["sketchSpaceImageObject:11", escape('{"parent":null,"shape":{"extType":"zimage","imageName":"cR7fZ-1VIBPdEsMzVP-BCTOJsPc-.pdf","page":15}}')]]],
+	  [" [Notes for Slide 11]\n\n\n", []],
+	  ["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever12"], ["sketchSpaceImageObject:12", escape('{"parent":null,"shape":{"extType":"zimage","imageName":"cR7fZ-1VIBPdEsMzVP-BCTOJsPc-.pdf","page":15}}')]]],
+	  [" [Notes for Slide 12]\n\n\n", []],
+	  ["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever13"], ["sketchSpaceImageObject:13", escape('{"parent":null,"shape":{"extType":"zimage","imageName":"cR7fZ-1VIBPdEsMzVP-BCTOJsPc-.pdf","page":15}}')]]],
+	  [" [Notes for Slide 13]\n\n\n", []],
+	  ["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever14"], ["sketchSpaceImageObject:14", escape('{"parent":null,"shape":{"extType":"zimage","imageName":"cR7fZ-1VIBPdEsMzVP-BCTOJsPc-.pdf","page":15}}')]]],
+	  [" [Notes for Slide 14]\n\n\n", []],
+	  ["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever15"], ["sketchSpaceImageObject:15", escape('{"parent":null,"shape":{"extType":"zimage","imageName":"cR7fZ-1VIBPdEsMzVP-BCTOJsPc-.pdf","page":15}}')]]],
+	  [" [Notes for Slide 15]\n\n\n", []],
+	  ["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever16"], ["sketchSpaceImageObject:16", escape('{"parent":null,"shape":{"extType":"zimage","imageName":"cR7fZ-1VIBPdEsMzVP-BCTOJsPc-.pdf","page":15}}')]]],
+	  [" [Notes for Slide 16]\n\n\n", []],
+	  ["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever17"], ["sketchSpaceImageObject:17", escape('{"parent":null,"shape":{"extType":"zimage","imageName":"cR7fZ-1VIBPdEsMzVP-BCTOJsPc-.pdf","page":15}}')]]],
+	  [" [Notes for Slide 17]\n\n\n", []],
+	  ["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever18"], ["sketchSpaceImageObject:18", escape('{"parent":null,"shape":{"extType":"zimage","imageName":"cR7fZ-1VIBPdEsMzVP-BCTOJsPc-.pdf","page":15}}')]]],
+	  [" [Notes for Slide 18]\n\n\n", []],
+	  ["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever19"], ["sketchSpaceImageObject:19", escape('{"parent":null,"shape":{"extType":"zimage","imageName":"cR7fZ-1VIBPdEsMzVP-BCTOJsPc-.pdf","page":15}}')]]],
+	  [" [Notes for Slide 19]\n\n\n", []],
+	  ["I", [["sketchSpaceIsImage", "shouldhavebeenanuuidbutwhatever20"], ["sketchSpaceImageObject:20", escape('{"parent":null,"shape":{"extType":"zimage","imageName":"cR7fZ-1VIBPdEsMzVP-BCTOJsPc-.pdf","page":15}}')]]],
+	  [" [Notes for Slide 20]\n\n\n", []],
+	  ["[Click on 'New Blank SketchSpace' button above to add additional SketchSpaces]", []]];
+
+
+  /*
   if (pro_utils.isProDomainRequest()) {
     return pro_config.getConfig().defaultPadText;
   }
   return renderTemplateAsString("misc/pad_default.ejs", {padUrl: request.url.split("?", 1)[0]});
+  */
 }
 
 function assignName(pad, userId) {
