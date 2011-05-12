@@ -33,6 +33,16 @@ limitations under the License. */ %><!DOCTYPE html PUBLIC
     <%= helpers.jsIncludes() %>
     <%= helpers.googleAnalytics() %>
 
+    <script>
+      if (navigator.appVersion.indexOf("MSIE") != -1) {
+        // bah, IE again, lets downgrade version number
+        version = parseFloat(navigator.appVersion.split("MSIE")[1]);
+	if (version < 8) {
+  	  window.location = "http://www.openingdesign.com/upgrade";
+	}
+      }
+    </script>
+
   </head>
 
   <body id="<%= helpers.bodyId() %>" class="<%= helpers.bodyClasses() %>">
