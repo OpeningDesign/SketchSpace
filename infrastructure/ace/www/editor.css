@@ -107,3 +107,17 @@ p {
 }
 
 #overlaysdiv { position: absolute; left: -1000px; top: -1000px; }
+
+#outerdocbody {
+ background-color: #FFFFFF;
+ background-image: url(/static/html/plugins/sketchSpace/outerdocbody-corner.png);
+ background-repeat: no-repeat;
+ background-position: left top;
+ background-attachment: fixed;
+}
+
+.sidedivdelayed {
+ background-color: #FFFFFF!important;
+ color: #888!important;
+ border-right: 1px solid #999;
+}
