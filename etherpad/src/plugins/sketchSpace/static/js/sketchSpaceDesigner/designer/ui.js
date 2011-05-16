@@ -73,7 +73,9 @@ dojo.declare("sketchSpaceDesigner.designer.DesignerUI", [dijit._Widget, dijit._T
                   '        </div>' +
                   '      </div>' +
                   '    </div>' +
-                  '    <div id="sketchSpaceEditor" dojoAttachPoint="editorArea"></div>' +
+                  '    <div id="sketchSpaceEditorDecoration">' +
+                  '      <div id="sketchSpaceEditor" dojoAttachPoint="editorArea"></div>' +
+                  '    </div>' +
                   '  </div>' +
                   '  <div id="sketchSpaceOptions" dojoType="sketchSpaceDesigner.designer.widgets.OptionsContainer" dojoAttachPoint="options"></div>' +
                   '</div>',

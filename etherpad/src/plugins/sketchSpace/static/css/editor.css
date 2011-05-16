@@ -173,15 +173,11 @@ top: -3px;
 }
 
 .sketchSpace #sketchSpaceEditor {
-	background-image: url(/static/html/plugins/sketchSpace/outerdocbody-corner.png);
 	bottom: 0;
 	left: 0;
 	position: absolute;
 	top: 98px;
 	width: 100%;
-	background-color: white;
-	background-repeat: no-repeat;
-	background-position: -20px 0px;
 }
 #sketchSpaceOptions {
     background: #333;
@@ -332,7 +328,8 @@ tundra.css
   top: 37px !important;
 }
 .sketchSpace #sketchSpaceEditor {
-  top: 73px !important;
+  top: 0px !important;
+  margin-left:25px;
 }
 
 #padmain {
@@ -354,10 +351,16 @@ tundra.css
     top: 0;
 }
 
-.sketchSpace #sketchSpaceEditor {
-left:20px;
-padding-left:25px;
-top:65px !important;
+.sketchSpace #sketchSpaceEditorDecoration {
+  left:20px;
+  top:65px !important;
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  background-image: url(/static/html/plugins/sketchSpace/outerdocbody-corner.png);
+  background-color: white;
+  background-repeat: no-repeat;
+  background-position: -20px 0px;
 }
 
 .sketchSpace #sketchSpaceEditBar {
