@@ -315,7 +315,7 @@ tundra.css
 
 
 .------------openingdesign-editorcss-original------------------------------------------------------------------------------------------- {}
-#padchat, #hdraggie, #docbarsavedrevs-outer, #docbarimpexp-outer, #docbaroptions-outer, .clearAuthorshipColors, .save, .sketchSpaceEditbarButtons, .topbar, #docbarpadtitle span {
+#padchat, #hdraggie, #docbarsavedrevs-outer, #docbarimpexp-outer, #docbaroptions-outer, /*.clearAuthorshipColors,*/ .save, .sketchSpaceEditbarButtons, .topbar, #docbarpadtitle span {
   display: none !important;
 }
 
@@ -353,10 +353,13 @@ tundra.css
     right: 0;
     top: 0;
 }
+
 .sketchSpace #sketchSpaceEditor {
-    left: 20px;
-    top: 65px !important;
+left:20px;
+padding-left:25px;
+top:65px !important;
 }
+
 .sketchSpace #sketchSpaceEditBar {
     top: 29px !important;
 }
