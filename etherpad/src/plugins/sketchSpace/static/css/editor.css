@@ -73,7 +73,7 @@ body {
   top: 98px; /* 25 + 6 + 25 + 6 + 35 + 1 */
   bottom: 0;
   width: 100%;
-  background: white;
+  background: transparent;
 }
 
 .sketchSpace.sketchSpaceMaximized a.topbarmaximize {
@@ -317,6 +317,7 @@ tundra.css
 
 #docbarpadtitle {
   background: none;
+  z-index:-1;
 }
 
 #padusers {
@@ -329,7 +330,8 @@ tundra.css
 }
 .sketchSpace #sketchSpaceEditor {
   top: 0px !important;
-  margin-left:25px;
+  margin-left:4px;
+  margin-top: 8px;
 }
 
 #padmain {
@@ -598,7 +600,7 @@ height: 24px;
 	background: none repeat scroll 0 0 #FFFFFF;
 	bottom: 0;
 	left: 0;
-	overflow: hidden;
+	overflow:auto;
 	position: absolute;
 	right: 0;
 	top: 36px;
@@ -612,6 +614,11 @@ height: 24px;
 	border-right-color: #C4C4C4;
 	border-bottom-color: #C4C4C4;
 	border-left-color: #C4C4C4;
+}
+.timeslider #editorcontainerbox {
+	background-image:url(/static/html/plugins/sketchSpace/outerdocbody-corner.png);
+	background-repeat: no-repeat;
+	padding-left: 40px;
 }
 #myuser {
     background-attachment: scroll;
