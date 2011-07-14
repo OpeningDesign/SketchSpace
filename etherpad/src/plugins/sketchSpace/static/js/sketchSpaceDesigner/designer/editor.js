@@ -180,6 +180,8 @@ dojo.declare("sketchSpaceDesigner.designer.editor.Editor", [], {
   },
 
   updateShapeAuthorshipColor: function (shape) {
+    if (shape.extType != undefined)
+      return;
     if (this.options.showAuthorshipColors) {
       var userColor = dojox.color.fromHex(this.getUserColor(shape.userId || this.userId) || "#ff0000");
 
