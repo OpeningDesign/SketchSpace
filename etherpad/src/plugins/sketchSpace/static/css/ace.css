@@ -8,9 +8,7 @@
 	background-repeat: no-repeat;
 	margin-right: 4px;
 	margin-left: 4px;
-	position: relative;
-	bottom: 9px;
-	margin-bottom: -12px;
+	vertical-align:36%
 }
 .sketchSpaceImageIsCurrent {
 	display: inline-block;
@@ -22,9 +20,7 @@
 	background-repeat: no-repeat;
 	margin-right: 4px;
 	margin-left: 4px;
-	position: relative;
-	bottom: 9px;
-	margin-bottom: -12px;
+	vertical-align:36%
 }
 #outerdocbody {
 	background-color: #FFFFFF;

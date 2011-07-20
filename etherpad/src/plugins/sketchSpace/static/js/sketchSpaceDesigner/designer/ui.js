@@ -28,7 +28,7 @@ dojo.declare("sketchSpaceDesigner.designer.DesignerUI", [dijit._Widget, dijit._T
                   '          <td><img src="/static/img/jun09/pad/roundcorner_left.gif"></td>' +
                   '          <td width="100%">&nbsp;</td>' +
                   '          <td class="docbarbutton"><a dojoAttachPoint="addImgButton">Add PDF background</a></td>' +
-                  '          <td class="docbarbutton">Sync view: <div dojoAttachPoint="shareCurrentImageOptionDiv"></div></td>' +
+                  '          <td class="docbarbutton">Sync view with others: <div dojoAttachPoint="shareCurrentImageOptionDiv"></div></td>' +
                   '          <td class="docbarbutton">Authorship colors: <div dojoAttachPoint="showAuthorshipColorOptionDiv"></div></td>' +
                   '          <td><img src="/static/img/jun09/pad/roundcorner_right_orange.gif"></td>' +
                   '        </tbody>' +

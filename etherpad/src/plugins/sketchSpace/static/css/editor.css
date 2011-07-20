@@ -180,8 +180,8 @@ top: -3px;
 	width: 100%;
 }
 #sketchSpaceOptions {
-    background: #333;
-	background-image: url(http://www.studiowikitecture.com/image/bottomgradient.png);
+    background: #555;
+	background-image: url("/static/html/plugins/sketchSpace/bottomgradient.png");
 	background-repeat: repeat-x;
     border-right: 1px solid #C4C4C4;
     border-top: 1px solid #C4C4C4;
