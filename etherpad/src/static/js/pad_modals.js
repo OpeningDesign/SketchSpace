@@ -115,7 +115,7 @@ var padmodals = (function() {
       });
     },
     getDefaultShareBoxMessageForName: function(name) {
-      return (name || "Somebody")+" has shared an EtherPad document with you."+
+      return (name || "Somebody")+" has shared a SketchSpace document with you."+
         "\n\n"+"View it here:\n\n"+
         padutils.escapeHtml($(".sharebox-url").val()+"\n");
     },
