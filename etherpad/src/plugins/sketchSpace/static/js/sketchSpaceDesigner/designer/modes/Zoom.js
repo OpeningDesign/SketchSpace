@@ -32,6 +32,7 @@ dojo.declare("sketchSpaceDesigner.designer.modes.Zoom", [sketchSpaceDesigner.des
   onMouseDown: function(event) {
     this.inherited(arguments);
     this.designer.surface_transform.originalMatrix = this.designer.surface_transform.getTransform();
+    this.orig = this.getCurrentMouse(event, this.designer.surface);
   },
   onMouseMove: function(event) {
     this.inherited(arguments);
@@ -50,9 +51,7 @@ dojo.declare("sketchSpaceDesigner.designer.modes.Zoom", [sketchSpaceDesigner.des
 	    && !key[dojo.keys.SPACE].altKey
 	    && !key[dojo.keys.SPACE].shiftKey)) {
        var mouseDown = mouse[dojo.mouseButtons.MIDDLE] || mouse[dojo.mouseButtons.LEFT];
-       var orig = this.getCurrentMouse(mouseDown, this.designer.surface);
-       var mouse = this.getCurrentMouse(event, this.designer.surface);
-       var move = dojox.gfx.matrix.translate(mouse.x - orig.x, mouse.y - orig.y);
+       var move = this.getCurrentMove(event, this.designer.surface);
        this.designer.surface_transform.setTransform(dojox.gfx.matrix.multiply(move, this.designer.surface_transform.originalMatrix));
     }
   },
