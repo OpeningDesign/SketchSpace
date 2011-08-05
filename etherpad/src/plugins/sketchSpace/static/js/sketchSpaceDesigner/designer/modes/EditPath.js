@@ -5,12 +5,14 @@ dojo.require("sketchSpaceDesigner.utils");
 
 
 dojo.declare("sketchSpaceDesigner.designer.modes.EditPath.Path", [], {
+  renderTimout: 100, // render stuff every x milliseconds. Only used by msie because if we render every time it crashes because it is sooo slooooow
   constructor: function (mode) {
     this.mode = mode;
     this.sections = [];
     this.options = {};
     this.shape = undefined;
     this.setOptions(mode.designer.options);
+    this.lastRenderTime = 0;
   },
   setOptions: function (options) {
     sketchSpaceDesigner.utils.setObject(this.options, options);
@@ -34,7 +36,13 @@ dojo.declare("sketchSpaceDesigner.designer.modes.EditPath.Path", [], {
     this.getLastSection().addPoint(p);
     this.renderToShape();
   },
-  renderToShape: function () {
+  renderToShape: function (force) {
+    if ($.browser.msie) {
+      var t = new Date().getTime();
+      if (!force && t - this.lastRenderTime < this.renderTimout) return;
+      this.lastRenderTime = t;
+    }
+
     if (this.sections.length > 0 && this.sections[0].points.length > 0) {
       // Note: We can't set path empty here and use shape.moveTo() because then Chrome woulod freak out...
       var path = "M " + this.sections[0].points[0].x + "," + this.sections[0].points[0].y;
@@ -150,6 +158,7 @@ dojo.declare("sketchSpaceDesigner.designer.modes.EditPath", [sketchSpaceDesigner
     this.path.addPoint(position);
   },
   done: function () {
+    this.path.renderToShape(true);
     if (this.path === undefined) return;
     if (this.path.sections.length > 0) {
       this.designer.registerObjectShape(this.path.shape);
