@@ -157,6 +157,10 @@ dojo.declare("sketchSpaceDesigner.designer.DesignerUI", [dijit._Widget, dijit._T
   },
 
   _onAddPathPolyline: function() {
+    if ($.browser.msie) {
+      alert("Sorry, this feature does not work reliable in Internet Explorer and has been disabled. Please upgrade to another browser (Chrome/Chromium, Firefox, Safari or Opera have all been tested and works fine)...");
+      return;
+    }
     this.editor.setMode(new sketchSpaceDesigner.designer.modes.AddPathPolyline());
     this.selectToolIcon("addPathPolyline");
   },
