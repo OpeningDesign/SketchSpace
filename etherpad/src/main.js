@@ -406,6 +406,13 @@ function handlePath() {
     [PrefixMatcher('/ep/'), forward(pro_main_control)]
   ]);
 
+  if (request.path.indexOf('/static/') != 0) {
+    if (!plugins.callHookBoolOr('authUrl', {url:request.path}, true)) {
+      render403();
+      return;
+    }
+  }
+
   // dispatching logic: first try common, then dispatch to
   // main site or pro.
 

@@ -235,6 +235,18 @@ function renderNoticeString(contentHtml, plugin) {
   renderFramed("notice.ejs", {content: contentHtml}, plugin);
 }
 
+function render403(noStop, plugin) {
+  response.reset();
+  response.setStatusCode(402);
+  renderFramedHtml(DIV({className: "fpcontent"},
+                    DIV({style: "padding: 2em 1em;"},
+                       DIV({style: "border: 1px solid #aaf; background: #def; padding: 1em; font-size: 150%;"},
+                        "403 forbidden: "+request.path))), plugin);
+  if (! noStop) {
+    response.stop();
+  }
+}
+
 function render404(noStop, plugin) {
   response.reset();
   response.setStatusCode(404);

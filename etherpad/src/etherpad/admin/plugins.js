@@ -285,3 +285,16 @@ function callHookStr(hookName, args, sep, pre, post) {
   if (post == undefined) post = '';
   return callHook(hookName, args).map(function (x) { return pre + x + post}).join(sep || "");
 }
+
+function callHookBoolOr(hookName, args, def) {
+  var hookData = callHook(hookName, args);
+  if (hookData.length == 0) {
+    return def;
+  }
+  for (var i = 0; i < hookData.length; i++) {
+    if (hookData[i]) {
+      return true;
+    }
+  }
+  return false;
+}
