@@ -665,6 +665,9 @@ height: 24px;
     z-index: 10;
 }
 
+.clearAuthorshipColors {
+	display: none;
+}
 
 .------------Broadcast-css------------------------------------------------------------------------------------------- {}
 
@@ -673,6 +676,9 @@ height: 24px;
   left: 2px;
   right: 4px;
   top: 4px;
+  margin-bottom: 1px;
+margin-left: 22px;
+margin-right: 22px;
 }
 
 #timeslider {
@@ -688,5 +694,5 @@ height: 24px;
 }
 
 .timeslider.sketchSpace #sketchSpaceEditorVdraggie {
-  top: 122px !important;
+  top: 113px !important;
 }
