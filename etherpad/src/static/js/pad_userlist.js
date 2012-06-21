@@ -418,10 +418,7 @@ var paduserlist = (function() {
   var self = {
     init: function(myInitialUserInfo) {
       self.setMyUserInfo(myInitialUserInfo);
-
-      $("#otheruserstable tr").remove();
-
-      if (pad.getUserIsGuest()) {
+      if (false && pad.getUserIsGuest()) {
         $("#myusernameedit").addClass('myusernameedithoverable');
         setUpEditable($("#myusernameedit"),
                       function() {
@@ -602,4 +599,3 @@ var paduserlist = (function() {
   };
   return self;
 }());
-

@@ -53,6 +53,7 @@ import("etherpad.control.pad.pad_view_control");
 import("etherpad.control.pad.pad_changeset_control");
 import("etherpad.control.pad.pad_importexport_control");
 import("etherpad.collab.readonly_server");
+import("etherpad.admin.plugins");
 
 import("dispatch.{Dispatcher,PrefixMatcher,DirMatcher,forward}");
 
@@ -105,6 +106,9 @@ function getDefaultPadText() {
 }
 
 function assignName(pad, userId) {
+  var names = plugins.callHook("assignName", {pad:pad, userId:userId});
+  if (names.length) return names[0];
+
   if (padusers.isGuest(userId)) {
     // use pad-specific name if possible
     var userData = pad.getAuthorData(userId);
@@ -758,4 +762,3 @@ function render_chathistory_get() {
   response.setContentType('text/plain; charset=utf-8');
   response.write(fastJSON.stringify(result));
 }
-
