@@ -132,7 +132,7 @@ body {
   margin-right: -22px;
 }
 
-.editbar, .docbar, .topbar {
+.editbar, .topbar {
   overflow: hidden;
 }
 
@@ -311,7 +311,7 @@ tundra.css
 
 
 .------------openingdesign-editorcss-original------------------------------------------------------------------------------------------- {}
-#padchat, #hdraggie, #docbarsavedrevs-outer, #docbarimpexp-outer, #docbaroptions-outer, /*.clearAuthorshipColors,*/ .save, .sketchSpaceEditbarButtons, .topbar, #docbarpadtitle span {
+#padchat, #hdraggie, #docbarimpexp-outer, #docbaroptions-outer, /*.clearAuthorshipColors,*/ .save, .sketchSpaceEditbarButtons, .topbar, #docbarpadtitle span {
   display: none !important;
 }
 
@@ -695,4 +695,13 @@ margin-right: 22px;
 
 .timeslider.sketchSpace #sketchSpaceEditorVdraggie {
   top: 113px !important;
+}
+
+#savedrevs-close,
+#savedrevs-savenow {
+  display: none;
+}
+
+#savedrevs-scrolly {
+  margin-right: 0;
 }
