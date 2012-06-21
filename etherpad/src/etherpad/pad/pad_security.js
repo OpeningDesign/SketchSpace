@@ -30,6 +30,7 @@ import("etherpad.pro.pro_padmeta");
 import("etherpad.pro.pro_utils");
 import("etherpad.pro.pro_utils.isProDomainRequest");
 import("etherpad.pad.noprowatcher");
+import("etherpad.admin.plugins");
 
 //--------------------------------------------------------------------------------
 // granting session permanent access to pads (for the session)
@@ -102,6 +103,10 @@ function checkAccessControl(globalPadId, rwMode) {
     return; // TODO: is this the right thing to do here?
     // Empirical evidence indicates request.isDefined during comet requests,
     // but not during tasks, which is the behavior we want.
+  }
+
+  if (!plugins.callHookBoolOr('authPad', {id:globalPadId, readonly:rwMode == 'r'}, true)) {
+    throw Error("Not authorized by plugin");
   }
 
   if (_insideCheckAccessControl) {
@@ -234,4 +239,3 @@ function _checkPasswordSecurity(globalPadId) {
     response.redirect('/ep/pad/auth/'+localPadId+'?cont='+encodeURIComponent(request.url));
   }
 }
-
