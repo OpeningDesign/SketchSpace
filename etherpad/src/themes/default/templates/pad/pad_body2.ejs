@@ -403,7 +403,30 @@ limitations under the License. */ %>
 
 
 <% template.define('modals', function() { var ejs_data=''; %>
-  <button class="submit_rev" onclick="padsavedrevs.saveNow(); alert('Revision submitted');";>Submit</submit>
+  <script>
+   function submit_rev(close) {
+      pad.callWhenNotCommitting(function() {
+        $.ajax({
+          type: 'post',
+          url: '/ep/pad/saverevision',
+          data: {
+            padId: pad.getPadId(),
+            savedBy: pad.getUserName() || "unnamed",
+            savedById: pad.getUserId(),
+            revNum: pad.getCollabRevisionNumber()
+          },
+          success: function () {
+	    var loc='http://staging.openingdesign.com/sketchspaces/submitted?padId=' + pad.getPadId();
+            if (close) { loc += "&close=true"; }
+            top.location = loc;
+	  },
+          error: function (e) { alert(e); }
+        });
+      });
+   }
+  </script>
+  <button class="submit_rev" onclick="submit_rev(false);">Submit</submit>
+  <button class="submit_close_rev" onclick="submit_rev(true);";>Submit & close</submit>
 
     <div id="connectionbox" class="modaldialog">
       <div id="connectionboxinner" class="modaldialog-inner">

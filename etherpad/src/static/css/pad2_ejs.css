@@ -1140,3 +1140,10 @@ a.topbarmaximize {
   border: 5px solid green;
   z-index: 500;"
 }
+.submit_close_rev {
+  position: absolute;
+  bottom: 5px;
+  right: 140px;
+  border: 5px solid green;
+  z-index: 500;"
+}

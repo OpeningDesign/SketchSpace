@@ -7,15 +7,35 @@
     padRev = 'latest';
     padId = request.path.split("/")[1];
   }
-  params = ["old=" + padId];
+  params = ["json=true", "old=" + padId];
   if (padRev != 'latest')
     params.push("old_rev=" + padRev);
   params = params.join('&');
 %>
+
+  <script>
+   function copy_pad(close) {
+      pad.callWhenNotCommitting(function() {
+        $.ajax({
+          type: 'get',
+          url: '/ep/copyPad?<%= params %>',
+          data: {},
+	  dataType: "json",
+          success: function (data) {
+	    top.location = 'http://staging.openingdesign.com/sketchspaces/cloned?old=' + data['old'] + "&new=" + data['new'];
+	  },
+          error: function (e) { alert(e); }
+        });
+      });
+   }
+  </script>
+
+
+
 <td>&nbsp;&nbsp;</td>
 <td><img src="/static/img/jun09/pad/editbar_groupleft.gif" width="2" height="24"></td>
 <td class="editbarbutton editbargroupsfirst">
-  <a href="/ep/copyPad?<%= params %>" title="Copy pad"><img src="/static/html/plugins/copyPad/editbar_copy.gif"></a>
+  <a href="javascript:void(0);" onclick="copy_pad();" title="Copy pad"><img src="/static/html/plugins/copyPad/editbar_copy.gif"></a>
 </td>
 <td class="editbarbutton">
   <a href="/ep/search?linksto=<%= padId %>" title="Find links to this pad (including copies of this pad)"><img src="/static/html/plugins/copyPad/editbar_find_links.gif"></a>

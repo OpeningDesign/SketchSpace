@@ -34,6 +34,7 @@ import("etherpad.pad.model");
 import("etherpad.collab.server_utils");
 import("etherpad.collab.collab_server.buildHistoricalAuthorDataMapForPadHistory");
 import("etherpad.collab.ace.easysync2.{Changeset,AttribPool}");
+import("fastJSON");
 
 function formatAuthorData(historicalAuthorData) {
   var authors_all = [];
@@ -113,7 +114,13 @@ function onRequest() {
 
   padutils.accessPadLocal(padId, function(pad) {
     createCopy(padId, pad, request.params.old, request.params.old_rev);
-    response.redirect('/'+ padId);
+
+    if (request.params.json) {
+      response.setContentType("text/plain");
+      response.write(fastJSON.stringify({"old": request.params.old, "new":padId, "old_rev":request.params.old_rev}));
+    } else {
+      response.redirect('/'+ padId);
+    }
   });
   return true;
 }
