@@ -86,10 +86,12 @@ limitations under the License. */ %><%
 <% template.define('sideBar', function() { var ejs_data=''; %>
   <div id="padsidebarfull">
     <div id="rightbar">
+<!--
       <a id="viewlatest" href="/ep/pad/view/<%= padId %>/latest">
       <% if (revisionId != "latest") { %>View latest content<% } else { %>Viewing latest content<% } %></a><br>
       <a class="tlink" href="/ep/pad/view/<%= padId %>/<%= revisionId %>" thref="/ep/pad/view/<%= padId %>/rev.%revision%">Link to this version</a>
       <% if (readOnly === false) { %><br><a class="tlink" href="/ep/pad/view/<%= roPadId %>/<%= revisionId %>" thref="/ep/pad/view/<%= roPadId %>/rev.%revision%">Link to read-only page</a><br><a href="/<%= padId %>">Edit this SketchSpace</a><% } %>
+-->
       <h2>Download as</h2>
       <img src="/static/img/may09/html.gif"><a class="tlink" href="/ep/pad/export/<%= padId %>/<%= revisionId %>?format=html" thref="/ep/pad/export/<%= padId %>/rev.%revision%?format=html">HTML</a><br>
       <img src="/static/img/may09/txt.gif" ><a class="tlink" href="/ep/pad/export/<%= padId %>/<%= revisionId %>?format=html" thref="/ep/pad/export/<%= padId %>/rev.%revision%?format=txt" >Plain text</a><br>
