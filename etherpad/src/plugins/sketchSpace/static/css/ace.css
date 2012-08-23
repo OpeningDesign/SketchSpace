@@ -1,8 +1,8 @@
 .sketchSpaceIsImage {
 	display: inline-block;
 	font-size: 0;
-	height: 24px;
-	width: 89px;
+	height: 28px;
+	width: 94px;
 	background-color: transparent;
 	background-image: url(/static/html/plugins/sketchSpace/icon.png);
 	background-repeat: no-repeat;
@@ -13,8 +13,8 @@
 .sketchSpaceImageIsCurrent {
 	display: inline-block;
 	font-size: 0;
-	height: 24px;
-	width: 89px;
+	height: 28px;
+	width: 94px;
 	background-color: transparent;
 	background-image: url(/static/html/plugins/sketchSpace/icon-active.png);
 	background-repeat: no-repeat;

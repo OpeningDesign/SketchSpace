@@ -1,152 +1,150 @@
-.------------sketchSpace-static-css-editorcss-original------------------------------------------------------------------------------------------- {}
+.------------sketchSpace-static-css-editorcss-original------------------------------------------------------------------------------------------- {
+}
 
 .noSketchSpace #padpage {
-  left: 50% !important;
-  width: 900px !important;
+	left: 50% !important;
+	width: 900px !important;
 }
 
 body {
-  overflow: hidden;
+	overflow: hidden;
 }
 
-#sketchSpaceEditorUI,
-.sketchSpace.maximized #sketchSpaceEditorUI,
-#sketchSpaceEditorVdraggie,
-.sketchSpace.maximized #sketchSpaceEditorVdraggie {
-  display: none;
+#sketchSpaceEditorUI, .sketchSpace.maximized #sketchSpaceEditorUI, #sketchSpaceEditorVdraggie, .sketchSpace.maximized #sketchSpaceEditorVdraggie {
+	display: none;
 }
 
 .sketchSpace #sketchSpaceEditorUI {
-  display: block;
+	display: block;
 }
 
 .sketchSpace #sketchSpaceEditorUI .editorui {
-  display: block;
-  position: absolute;
-  left: 0;
-  right: 50%;
-  top: 0;
-  bottom: 20pt;
-  margin-right: 0;
+	display: block;
+	position: absolute;
+	left: 0;
+	right: 50%;
+	top: 0;
+	bottom: 20pt;
+	margin-right: 0;
 }
 
 .sketchSpace.maximized #padpage {
-  left: 8px !important;
-  right: 8px !important;
-  width: auto !important;
+	left: 8px !important;
+	right: 8px !important;
+	width: auto !important;
 }
 
 .sketchSpace.sketchSpaceMaximized #padpage {
-  display: none;
+	display: none;
 }
-.sketchSpace.sketchSpaceMaximized #sketchSpaceEditorVdraggie,
-.mazimized #sketchSpaceEditorVdraggie {
-  display: none;
+.sketchSpace.sketchSpaceMaximized #sketchSpaceEditorVdraggie, .mazimized #sketchSpaceEditorVdraggie {
+	display: none;
 }
 
 .sketchSpace #padpage {
-  right: 0px;
-  width: 50%;
-  margin-left: 0;
-  left: auto;
-  bottom: 20pt;
+	right: 0px;
+	width: 50%;
+	margin-left: 0;
+	left: auto;
+	bottom: 20pt;
 }
 
 .sketchSpace.sketchSpaceMaximized #sketchSpaceEditorUI .editorui {
-  left: 0 !important;
-  right: 0 !important;
-  width: auto !important;
+	left: 0 !important;
+	right: 0 !important;
+	width: auto !important;
 }
 
 .sketchSpace #sketchSpaceEditBar {
-  position: absolute;
-  left: 0;
-  top: 62px; /* 25 + 6 + 25 + 2 */
-  width: 100%;
-  height: 36px;
-  background: white;
+	position: absolute;
+	left: 0;
+	top: 62px; /* 25 + 6 + 25 + 2 */
+	width: 100%;
+	height: 36px;
+	background: white;
 }
 
 .sketchSpace #sketchSpaceEditor {
-  position: absolute;
-  left: 0;
-  top: 98px; /* 25 + 6 + 25 + 6 + 35 + 1 */
-  bottom: 0;
-  width: 100%;
-  background: transparent;
+	position: absolute;
+	left: 0;
+	top: 98px; /* 25 + 6 + 25 + 6 + 35 + 1 */
+	bottom: 0;
+	width: 100%;
+	background: transparent;
 }
 
 .sketchSpace.sketchSpaceMaximized a.topbarmaximize {
-  background: url(/static/img/jun09/pad/maximize_maximized.png);
+	background: url(/static/img/jun09/pad/maximize_maximized.png);
 }
 
 #sketchSpaceOptions {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 20pt;
-  background: white;
-  overflow: auto;
-  border-top: 1px solid #C4C4C4;
-  border-right: 1px solid #C4C4C4;
-  padding: 0;
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 32px;
+	background: white;
+	overflow: auto;
+	border-top: 1px solid #C4C4C4;
+	border-right: 1px solid #C4C4C4;
+	padding: 0;
+	z-index: 100;
 }
 
 .optionsContainer {
-  vertical-align: middle;
-  height: 100%;
-  line-height: 20pt;
-  display: block;
-  padding-left: 4pt;
+	vertical-align: middle;
+	height: 100%;
+	line-height: 20pt;
+	display: block;
+	padding-left: 4pt;
 }
 
 .optionsContainer-separator {
-  padding-left: 20pt;
+	padding-left: 20pt;
 }
 
 .optionsContainer-option {
 }
 
-.optionsContainer-label,
-.optionsContainer-child {
-  display: inline-block;
-  white-space: nowrap;
-  line-height: 1em;
+.optionsContainer-label, .optionsContainer-child {
+	display: inline-block;
+	white-space: nowrap;
+	line-height: 1em;
 }
 
 .optionsContainer-label {
- padding-right: 4pt;
+	padding-right: 4pt;
 }
 
 .sketchSpace #sketchSpaceEditorVdraggie {
-  display: block;
-  background: url(/static/img/jun09/pad/vdraggie.gif) no-repeat top center;
-  cursor: W-resize;
-  bottom: 20pt;
-  position:absolute;
-  right:50%;
-  top:62px;
-  width:22px;
-  z-index: 10;
-  margin-right: -22px;
+	display: block;
+	background: url(/static/img/jun09/pad/vdraggie.gif) no-repeat top center;
+	cursor: W-resize;
+	bottom: 20pt;
+	position: absolute;
+	right: 50%;
+	top: 62px;
+	width: 22px;
+	z-index: 10;
+	margin-right: -22px;
 }
 
 .editbar, .topbar {
-  overflow: hidden;
+	overflow: hidden;
 }
 
-.------------sketchSpace-static-css-editorcss-modified------------------------------------------------------------------------------------------- {}
+.------------sketchSpace-static-css-editorcss-modified------------------------------------------------------------------------------------------- {
+}
 
 #sketchSpaceEditBar .editbartable {
-position: absolute;
-left: 77px;
-width: 250px;
-height: 29px;
+	position: absolute;
+	left: 77px;
+	width: 250px;
+	height: 29px;
 }
 
 #sketchSpaceEditBar .editbarbutton {
-	width:36px;
+	width: 36px;
 	background-color: white;
 	padding: 0 2px;
 	border-top-width: 1px;
@@ -160,16 +158,16 @@ height: 29px;
 	border-left-color: #CCCCCC;
 }
 #sketchSpaceEditBar .editbarbutton img {
-border: 0 none;
-height: 29px;
-width: 36px;
-position: relative;
-top: -3px;
+	border: 0 none;
+	height: 29px;
+	width: 36px;
+	position: relative;
+	top: -3px;
 }
 #sketchSpaceEditBar .editbarsavetable {
-    height: 29px;
-    position: absolute;
-    right: 29px;
+	height: 29px;
+	position: absolute;
+	right: 29px;
 }
 
 .sketchSpace #sketchSpaceEditor {
@@ -180,315 +178,282 @@ top: -3px;
 	width: 100%;
 }
 #sketchSpaceOptions {
-    background: #555;
-	background-image: url("/static/html/plugins/sketchSpace/bottomgradient.png");
+	background-image: url("http://staging.openingdesign.com/images/footer_repeat.png");
 	background-repeat: repeat-x;
-    border-right: 1px solid #C4C4C4;
-    border-top: 1px solid #C4C4C4;
-    bottom: 0;
-    height: 20pt;
-    left: 0;
-    overflow: auto;
-    padding: 0;
-    position: absolute;
-    right: 0;
+	bottom: 0;
+	height: 32px;
+	left: 0;
+	overflow: auto;
+	padding: 0;
+	position: absolute;
+	right: 0;
 }
 .optionsContainer-label {
-    color: #999;
-    font-size: 14px;
-    padding-right: 4pt;
+	color: #ddd;
+	font-size: 14px;
+	padding-right: 4pt;
 }
 .optionsContainer-label, .optionsContainer-child {
-    display: inline-block;
-    line-height: 1em;
-    position: relative;
-    white-space: nowrap;
-	vertical-align:middle;
+	display: inline-block;
+	line-height: 1em;
+	position: relative;
+	white-space: nowrap;
+	vertical-align: middle;
 }
 .optionsContainer-separator {
 	background-image: url(/static/html/plugins/sketchSpace/optionsContainer-separator-.png);
 	background-repeat: no-repeat;
 	padding-left: 30pt;
 	background-position: 1px 2px;
-	}
-
+}
 
 @charset "utf-8";
-.------------tundra-modified------------------------------------------------------------------------------------------- {}
+.------------tundra-modified------------------------------------------------------------------------------------------- {
+}
 .tundra .dijitCheckBox, .tundra .dijitCheckBoxIcon {
-    background-image: url("/static/html/plugins/sketchSpace/checkmark.png");
-    background-repeat: no-repeat;
-    height: 16px;
-    margin: 0 2px 0 0;
-    padding: 0;
-    width: 16px;
+	background-image: url("/static/html/plugins/sketchSpace/checkmark.png");
+	background-repeat: no-repeat;
+	height: 16px;
+	margin: 0 2px 0 0;
+	padding: 0;
+	width: 16px;
 }
 .tundra .dijitArrowButtonInner {
-    background: url("/static/html/plugins/sketchSpace/spriteArrows.png") no-repeat scroll 0 center transparent;
-    height: 7px;
-    margin: 0 4px;
-    width: 7px;
+	background: url("/static/html/plugins/sketchSpace/spriteArrows.png") no-repeat scroll 0 center transparent;
+	height: 7px;
+	margin: 0 4px;
+	width: 7px;
 }
 .tundra .dijitButtonText {
-    color: #FFFFFF;
-    font-size: 13px;
-    padding: 0 0.3em;
-    text-align: center;
+	color: #ddd;
+	font-size: 13px;
+	padding: 0 0.3em;
+	text-align: center;
 }
 .tundra .dijitButtonNode {
-    background: none repeat scroll 0 0 #111111;
-    border-color: #C0C0C0 #C0C0C0 #9B9B9B;
-    border-style: solid;
-    border-width: 1px;
-    padding: 0.1em 0.2em 0.2em;
+	background: none;
+	border-color: #C0C0C0 #C0C0C0 #9B9B9B;
+	border-style: solid;
+	border-width: 1px;
+	padding: 0.1em 0.2em 0.2em;
 }
 .dijitToggleButton, .dijitButton, .dijitDropDownButton, .dijitComboButton {
-    margin: 0.2em;
-    position: relative;
-
+	margin: 0.2em;
+	position: relative;
 }
 .tundra .dijitInputContainer input, .tundra .dijitTextBox {
-    margin: 0 0.1em;
-	color:#ffffff;
+	margin: 0 0.1em;
+	color: #ffffff;
 }
 tundra.css
 .dijitTextBox input {
-    float: left;
+	float: left;
 }
 tundra.css
 .dijitInputInner {
-    background-color: #111111;
-    border: 0 none !important;
-    color: #FFFFFF;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    vertical-align: middle !important;
-    width: 100% !important;
+	background-color: #111111;
+	border: 0 none !important;
+	color: #FFFFFF;
+	margin-left: 0 !important;
+	margin-right: 0 !important;
+	vertical-align: middle !important;
+	width: 100% !important;
 }
 
 .tundra .dijitTextBox {
-    border: 1px solid #B3B3B3;
-	background:none;
+	border: 1px solid #B3B3B3;
+	background: none;
 }
 .dijitInputContainer {
-    background-color: #111111;
-    float: none !important;
-    font-size: 13px;
-    overflow: hidden;
-    position: relative;
+
+	float: none !important;
+	font-size: 13px;
+	overflow: hidden;
+	position: relative;
 }
 
-
-	
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-.------------openingdesign-editorcss-original------------------------------------------------------------------------------------------- {}
+.------------openingdesign-editorcss-original------------------------------------------------------------------------------------------- {
+}
 #padchat, #hdraggie, #docbarimpexp-outer, #docbaroptions-outer, /*.clearAuthorshipColors,*/ .save, .sketchSpaceEditbarButtons, .topbar, #docbarpadtitle span {
-  display: none !important;
+	display: none !important;
 }
 
 #docbarpadtitle {
-  background: none;
-  z-index:-1;
+	background: none;
+	z-index: -1;
 }
 
 #padusers {
-  height: auto !important;
-  bottom: 0 !important;
+	height: auto !important;
+	bottom: 0 !important;
 }
 
 .sketchSpace #sketchSpaceEditBar {
-  top: 37px !important;
+	top: 37px !important;
 }
 .sketchSpace #sketchSpaceEditor {
-  top: 0px !important;
-  margin-left:4px;
-  margin-top: 8px;
+	top: 0px !important;
+	margin-left: 4px;
+	margin-top: 8px;
 }
 
 #padmain {
-  top: 31px !important;
+	top: 31px !important;
 }
 
 .sketchSpace #sketchSpaceEditorVdraggie {
-  top: 37px !important;
+	top: 37px !important;
 }
 
-.------------openingdesign-editorcss-modified------------------------------------------------------------------------------------------- {}
+.------------openingdesign-editorcss-modified------------------------------------------------------------------------------------------- {
+}
 #padusers {
-    background: transparent;
-    border: 1px solid #C4C4C4;
-    height: 300px;
-    left: 0;
-    position: absolute;
-    right: 0;
-    top: 0;
+	background: transparent;
+	border: 1px solid #C4C4C4;
+	height: 300px;
+	left: 0;
+	position: absolute;
+	right: 0;
+	top: 0;
 }
 
 .sketchSpace #sketchSpaceEditorDecoration {
-  left:20px;
-  top:65px !important;
-  position: absolute;
-  bottom: 0;
-  width: 100%;
-  background-image: url(/static/html/plugins/sketchSpace/outerdocbody-corner.png);
-  background-color: white;
-  background-repeat: no-repeat;
-  background-position: -20px 0px;
+	left: 20px;
+	top: 65px !important;
+	position: absolute;
+	bottom: 0;
+	width: 100%;
+	background-image: url(/static/html/plugins/sketchSpace/outerdocbody-corner.png);
+	background-color: white;
+	background-repeat: no-repeat;
+	background-position: -20px 0px;
 }
 
 .sketchSpace #sketchSpaceEditBar {
-    top: 29px !important;
+	top: 29px !important;
 }
-
 
 #padmain {
-    top: 23px !important;
+	top: 23px !important;
 }
 .sketchSpace #sketchSpaceEditorVdraggie {
-    background: url("/static/html/plugins/sketchSpace/vdraggie2.gif") no-repeat scroll center top transparent;
-    bottom: 20pt;
-    cursor: w-resize;
-    display: block;
-    margin-right: -22px;
-    position: absolute;
-    right: 50%;
-    top: 62px;
-    width: 22px;
-    height:36px;
-    z-index: 10;
+	background: url("/static/html/plugins/sketchSpace/vdraggie2.gif") no-repeat scroll center top transparent;
+	bottom: 20pt;
+	cursor: w-resize;
+	display: block;
+	margin-right: -22px;
+	position: absolute;
+	right: 50%;
+	top: 62px;
+	width: 22px;
+	height: 36px;
+	z-index: 10;
 }
 
-.------------Inline Styles-Original------------------------------------------------------------------------------------------- {}
+.------------Inline Styles-Original------------------------------------------------------------------------------------------- {
+}
 
-
-<style type="text/css">body {
-white-space:nowrap;
-margin:0;
+<style type="text/css">
+body {
+	white-space: nowrap;
+	margin: 0;
 }
 
 #outerdocbody {
-background-color:#fff;
+	background-color: #fff;
 }
 
 body.grayedout {
-background-color:#eee !important;
+	background-color: #eee !important;
 }
 
 #innerdocbody {
-font-size:12px;
-font-family:monospace;
-line-height:16px;
-overflow:hidden;
-background-image:url(data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==);
-padding:1px 10px 8px 1px;
+	font-size: 12px;
+	font-family: monospace;
+	line-height: 16px;
+	overflow: hidden;
+	background-image: url(data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==);
+	padding: 1px 10px 8px 1px;
 }
 
 body.doesWrap {
-white-space:normal;
-display:block !important;
+	white-space: normal;
+	display: block !important;
 }
 
 #sidediv {
-font-size:11px;
-font-family:monospace;
-line-height:16px;
-padding-top:8px;
-padding-right:3px;
-position:absolute;
-width:20px;
-top:0;
-left:0;
-cursor:default;
-color:#FFF;
+	font-size: 11px;
+	font-family: monospace;
+	line-height: 16px;
+	padding-top: 8px;
+	padding-right: 3px;
+	position: absolute;
+	width: 20px;
+	top: 0;
+	left: 0;
+	cursor: default;
+	color: #FFF;
 }
 
 #sidedivinner {
-text-align:right;
+	text-align: right;
 }
 
 .sidedivdelayed {
-background-color:#eee;
-color:#888 !important;
-border-right:1px solid #999;
+	background-color: #eee;
+	color: #888 !important;
+	border-right: 1px solid #999;
 }
 
 .sidedivhidden {
-display:none;
+	display: none;
 }
 
 #outerdocbody iframe {
-display:block;
-position:relative;
-left:32px;
-top:7px;
-border:0;
-width:1px;
-height:1px;
+	display: block;
+	position: relative;
+	left: 32px;
+	top: 7px;
+	border: 0;
+	width: 1px;
+	height: 1px;
 }
 
 #outerdocbody .hotrect {
-border:1px solid #999;
-position:absolute;
+	border: 1px solid #999;
+	position: absolute;
 }
 
-body.mozilla,body.safari {
-display:table-cell;
+body.mozilla, body.safari {
+	display: table-cell;
 }
 
 .safari div {
-padding-right:1px;
+	padding-right: 1px;
 }
 
 p {
-margin:0;
+	margin: 0;
 }
 
 #linemetricsdiv {
-position:absolute;
-left:-1000px;
-top:-1000px;
-color:#FFF;
-z-index:-1;
-font-size:12px;
-font-family:monospace;
+	position: absolute;
+	left: -1000px;
+	top: -1000px;
+	color: #FFF;
+	z-index: -1;
+	font-size: 12px;
+	font-family: monospace;
 }
 
 #overlaysdiv {
-position:absolute;
-left:-1000px;
-top:-1000px;
+	position: absolute;
+	left: -1000px;
+	top: -1000px;
 }
 
-.------------Inline Styles-Modified------------------------------------------------------------------------------------------- {}
+.------------Inline Styles-Modified------------------------------------------------------------------------------------------- {
+}
 
 #outerdocbody {
 	background-color: #FFFFFF;
@@ -497,16 +462,16 @@ top:-1000px;
 	background-position: left top;
 }
 #innerdocbody {
-padding-top: 6px;
+	padding-top: 6px;
 }
 .sidedivdelayed {
-	background-color: #FFFFFF!important;
-	color: #888!important;
+	background-color: #FFFFFF !important;
+	color: #888 !important;
 	border-right: 1px solid #999;
 }
 
-
-.------------pad2_ejscss-modified------------------------------------------------------------------------------------------- {}
+.------------pad2_ejscss-modified------------------------------------------------------------------------------------------- {
+}
 /* CSS Document */
 
 body {
@@ -514,7 +479,7 @@ body {
 	background-image: none;
 }
 body, textarea {
-font-family:"Myriad Pro",Myriad,Trebuchet MS,Arial,sans-serif;
+	font-family: "Myriad Pro", Myriad, Trebuchet MS, Arial, sans-serif;
 }
 
 .docbar {
@@ -536,18 +501,18 @@ font-family:"Myriad Pro",Myriad,Trebuchet MS,Arial,sans-serif;
 }
 .docbarbutton.highlight {
 	background-color: transparent;
-	border-top-width: 1px;
-	border-right-width: 1px;
+	border-top-width: 0px;
+	border-right-width: 0px;
 	border-bottom-width: 1px;
 	border-left-width: 1px;
 	border-top-style: solid;
 	border-right-style: solid;
 	border-bottom-style: none;
 	border-left-style: solid;
-	border-top-color: #CCCCCC;
-	border-right-color: #CCCCCC;
-	border-bottom-color: #CCCCCC;
-	border-left-color: #CCCCCC;
+	border-top-color: #CCC;
+	border-right-color: #CCC;
+	border-bottom-color: #CCC;
+	border-left-color: #CCC;
 }
 .editbar {
 	height: 36px;
@@ -563,11 +528,11 @@ font-family:"Myriad Pro",Myriad,Trebuchet MS,Arial,sans-serif;
 	color: #444;
 }
 .editbartable {
-position: absolute;
-top: 12px;
-left: 47px;
-width: 250px;
-height: 24px;
+	position: absolute;
+	top: 12px;
+	left: 47px;
+	width: 250px;
+	height: 24px;
 }
 .editbarbutton {
 	background-color: white;
@@ -583,10 +548,10 @@ height: 24px;
 	border-left-color: #CCCCCC;
 }
 .editbarsavetable {
-    height: 24px;
-    position: absolute;
-    right: 29px;
-    top: 12px;
+	height: 24px;
+	position: absolute;
+	right: 29px;
+	top: 12px;
 }
 
 .menu a {
@@ -600,7 +565,7 @@ height: 24px;
 	background: none repeat scroll 0 0 #FFFFFF;
 	bottom: 0;
 	left: 0;
-	overflow:auto;
+	overflow: auto;
 	position: absolute;
 	right: 0;
 	top: 36px;
@@ -616,92 +581,137 @@ height: 24px;
 	border-left-color: #C4C4C4;
 }
 .timeslider #editorcontainerbox {
-	background-image:url(/static/html/plugins/sketchSpace/outerdocbody-corner.png);
+	background-image: url(/static/html/plugins/sketchSpace/outerdocbody-corner.png);
 	background-repeat: no-repeat;
 	padding-left: 40px;
 }
 #myuser {
-    background-attachment: scroll;
-    background-color: transparent;
-    background-image: none;
-    background-position: 0 0;
-    background-repeat: repeat;
-    height: 31px;
-    left: 13px;
-    padding: 5px;
-    position: absolute;
-    right: 0;
-    top: 15px;
+	background-attachment: scroll;
+	background-color: transparent;
+	background-image: none;
+	background-position: 0 0;
+	background-repeat: repeat;
+	height: 31px;
+	left: 13px;
+	padding: 5px;
+	position: absolute;
+	right: 0;
+	top: 15px;
 }
 #otherusers {
-    bottom: 28px;
-    left: 36px;
-    overflow: auto;
-    position: absolute;
-    right: 0;
-    top: 61px;
+	bottom: 28px;
+	left: 36px;
+	overflow: auto;
+	position: absolute;
+	right: 0;
+	top: 61px;
 }
 #padsidebar {
-    background-image: url(/static/html/plugins/sketchSpace/padsidebar-corner.png);
+	background-image: url(/static/html/plugins/sketchSpace/padsidebar-corner.png);
 	background-repeat: no-repeat;
 	background-position: left top;
 	bottom: 0;
-    overflow: hidden;
-    position: absolute;
-    right: 0;
-    top: 0;
-    width: 290px;
-    z-index: 11;
+	overflow: hidden;
+	position: absolute;
+	right: 0;
+	top: 0;
+	width: 290px;
+	z-index: 11;
 }
 #vdraggie {
-    background: url("/static/html/plugins/sketchSpace/vdraggie2.gif") no-repeat scroll center top transparent;
-    bottom: 0;
-    cursor: w-resize;
-    position: absolute;
-    right: 268px;
-    top: 11px;
-    width: 42px;
-	height:36px;
-    z-index: 10;
+	background: url("/static/html/plugins/sketchSpace/vdraggie2.gif") no-repeat scroll center top transparent;
+	bottom: 0;
+	cursor: w-resize;
+	position: absolute;
+	right: 268px;
+	top: 11px;
+	width: 42px;
+	height: 36px;
+	z-index: 10;
 }
 
 .clearAuthorshipColors {
 	display: none;
 }
 
-.------------Broadcast-css------------------------------------------------------------------------------------------- {}
+.------------Broadcast-css------------------------------------------------------------------------------------------- {
+}
 
 #timeslider-wrapper {
-  position: absolute;
-  left: 2px;
-  right: 4px;
-  top: 4px;
-  margin-bottom: 1px;
-margin-left: 22px;
-margin-right: 22px;
+	position: absolute;
+	left: 2px;
+	right: 4px;
+	top: 4px;
+	margin-bottom: 1px;
+	margin-left: 22px;
+	margin-right: 22px;
 }
 
 #timeslider {
-  margin-top: 0;
+	margin-top: 0;
 }
 
 .timeslider #padpage {
-  top: 74px;
+	top: 74px;
 }
 
 .timeslider.sketchSpace #sketchSpaceEditorUI .editorui {
-  top: 74px;
+	top: 74px;
 }
 
 .timeslider.sketchSpace #sketchSpaceEditorVdraggie {
-  top: 113px !important;
+	top: 113px !important;
 }
 
-#savedrevs-close,
-#savedrevs-savenow {
-  display: none;
+#savedrevs-close, #savedrevs-savenow {
+	display: none;
 }
 
 #savedrevs-scrolly {
-  margin-right: 0;
+	margin-right: 0;
+}
+
+.------------submit_buttons------------------------------------------------------------------------------------------- {
+}
+
+.tundra .dijitButtonHover .dijitButtonNode, .tundra .dijitButtonNodeHover, .tundra .dijitToggleButtonHover .dijitButtonNode, .tundra .dijitDropDownButtonHover .dijitButtonNode, .tundra .dijitComboButton .dijitButtonContentsHover, .tundra .dijitComboButton .dijitDownArrowButtonHover {
+	border-color: none;
+	background: none;
+}
+#forcereconnect {
+	display: none;
+}
+
+.submit_close_rev {
+	position: absolute;
+	bottom: 18px;
+	right: 156px;
+	z-index: 500;
+	background-image: url("/static/html/plugins/sketchSpace/Submit_and_Close.png");
+	background-repeat: no-repeat;
+	width: 149px;
+	height: 32px;
+	color: #fff;
+	border: 1px solid #666;
+	font-size: 15px;
+}
+.submit_close_rev:hover {
+	color: #BDD2E7;
+}
+
+.submit_rev {
+	position: absolute;
+	bottom: 18px;
+	right: 40px;
+	z-index: 500;
+	background-image: url("/static/html/plugins/sketchSpace/submit.png");
+	background-repeat: no-repeat;
+	width: 90px;
+	height: 32px;
+	color: #fff;
+	border: 1px solid #666;
+	font-size: 15px;
+}
+.submit_rev:hover {
+	color: #BDD2E7;
 }
