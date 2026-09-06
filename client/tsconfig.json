@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "types": ["vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "@excalidraw/excalidraw": [
+        "../vendor/excalidraw/types/excalidraw/index.d.ts"
+      ],
+      "@excalidraw/excalidraw/element/*": [
+        "../vendor/excalidraw/types/element/src/*"
+      ],
+      "@excalidraw/excalidraw/*": ["../vendor/excalidraw/types/excalidraw/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}

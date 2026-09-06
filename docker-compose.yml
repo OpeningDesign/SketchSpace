@@ -1,0 +1,14 @@
+services:
+  sketchspace:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      SKETCHSPACE_PASSWORD: ${SKETCHSPACE_PASSWORD:?set SKETCHSPACE_PASSWORD in .env}
+      SKETCHSPACE_SESSION_SECRET: ${SKETCHSPACE_SESSION_SECRET:?set SKETCHSPACE_SESSION_SECRET in .env}
+    volumes:
+      - sketchspace-data:/data
+
+volumes:
+  sketchspace-data:

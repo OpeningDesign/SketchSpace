@@ -1,0 +1,79 @@
+# CLAUDE.md
+
+Self-hosted collaborative multi-page whiteboard. React + Vite client wrapping
+the Excalidraw editor; Express + socket.io + SQLite server. Read `README.md`
+first — it covers the architecture. This file covers what bites you.
+
+## The editor is vendored, not an npm dependency
+
+`@excalidraw/excalidraw` is **deliberately absent from `package.json`**. The
+editor is built in a sibling excalidraw checkout and copied into `vendor/` by
+`scripts/sync-editor.mjs`, so patches carried in that checkout are in this app.
+
+**Do not "fix" a missing-module error by installing `@excalidraw/excalidraw`.**
+That yields two editors in the tree and no clear answer as to which is live.
+The correct fix is almost always:
+
+```bash
+cd ../excalidraw && yarn build:packages
+cd ../sketchspace && npm run sync:editor && npm run typecheck
+```
+
+Five packages are vendored (`excalidraw`, `common`, `element`, `math`,
+`fractional-indexing`) because upstream's `buildPackage.js` marks the four
+siblings as esbuild externals. `client/vite.config.ts` aliases each — bare and
+`/*` — onto its single `index.js`. The ~31 third-party entries in
+`devDependencies` exist because that build runs `packages: "external"`; they are
+the editor's own runtime imports, not ours. Don't prune them.
+
+## Traps
+
+**Tracking master means upstream renames reach you.** `excalidrawAPI` became
+`onExcalidrawAPI` in excalidraw#10870 after the 0.18.1 release. Because
+`client/tsconfig.json` points at the *vendored* types, `npm run typecheck`
+catches this class of break. Always typecheck after `sync:editor`.
+
+**A missing editor feature is usually menu composition, not vendoring.** The
+editor's fallback menu omits `Preferences` entirely, so anything inside it
+renders nowhere unless `Board.tsx` lists it in our `<MainMenu>`. Confirm the
+feature is in the bundle (`grep -o <feature> dist/client/assets/index-*.js`)
+before suspecting the vendoring.
+
+**Never put the data directory in Dropbox.** SQLite WAL keeps three files open
+in lockstep; a sync client locks them and syncs them out of step. This repo is
+inside Dropbox, so `SKETCHSPACE_DATA_DIR` points outside it. Symptom: "Device or
+resource busy" on the `.db` files.
+
+**Find the server process by port, not by name.** It runs as
+`node dist/server/index.js` — a relative path — so filtering process command
+lines for "sketchspace" matches nothing and reports "not running" while it is
+plainly serving.
+
+**`npm install` here is slow** (Dropbox + a better-sqlite3 native build). Run it
+in the background and expect minutes, not seconds.
+
+## Where things live
+
+| Concern                           | File                              |
+| --------------------------------- | --------------------------------- |
+| Reconciliation (mirrors upstream) | `server/src/reconcile.ts`         |
+| Authoritative scene state, caching, debounced persistence | `server/src/store.ts` |
+| Socket rooms, presence, page ops  | `server/src/collab.ts`            |
+| Schema and queries                | `server/src/db.ts`                |
+| Page ordering                     | `server/src/fracIndex.ts`         |
+| HTTP routes, auth, static, files  | `server/src/index.ts`             |
+| Client collab wiring              | `client/src/useCollab.ts`         |
+| Editor mount + menu composition   | `client/src/Board.tsx`            |
+
+`server/src/reconcile.ts` intentionally mirrors
+`packages/excalidraw/data/reconcile.ts` upstream: higher `version` wins, ties
+broken by the **lower** `versionNonce`. If you change one, check the other —
+divergence produces clients that disagree with the server and is not something
+the smoke test will obviously catch.
+
+## Verifying
+
+`npm run smoke` drives three concurrent clients through auth, scene deltas,
+conflict resolution, page isolation, presence, and persistence. All 18 checks
+must pass. Point it at a throwaway `SKETCHSPACE_DATA_DIR` and port — see the
+README. Run it after any change to `collab.ts`, `store.ts`, or `reconcile.ts`.
