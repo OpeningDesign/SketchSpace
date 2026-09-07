@@ -18,13 +18,23 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 import { MM_TO_PX } from "./bonsaiLayout.js";
 import { listPages } from "./db.js";
-import { getElements } from "./store.js";
+import { noteSelfWrite } from "./layoutWatcher.js";
+import { applyUpdate, getElements } from "./store.js";
+
+import type { SyncElement } from "./types.js";
 
 /** Positions must differ by more than this (mm) to be worth writing. */
 const EPSILON = 0.01;
 
 /** A sibling that was dragged away from its group; we only write the group offset. */
 const INDEPENDENT_MOVE_TOLERANCE = 0.5;
+
+/**
+ * How long a placement must sit still before its position is written to the
+ * layout. Long enough to coalesce a drag, short enough to feel automatic - and
+ * it keeps write churn down on a Dropbox-synced project tree.
+ */
+const AUTOSAVE_MS = 2000;
 
 export type MovedDrawing = {
   groupKey: string;
@@ -48,6 +58,11 @@ export type PushResult = {
   errors: string[];
   /** Total drawings that would move / did move. */
   total: number;
+  /**
+   * Elements whose stored baseline was refreshed to match what we just wrote,
+   * keyed by page. Callers broadcast these so open clients stay in step.
+   */
+  refreshed: { pageId: string; elements: SyncElement[] }[];
 };
 
 type BonsaiMeta = {
@@ -65,6 +80,7 @@ type BonsaiMeta = {
 type SceneElement = {
   x: number;
   y: number;
+  version: number;
   isDeleted?: boolean;
   customData?: { bonsai?: BonsaiMeta };
 };
@@ -78,6 +94,7 @@ export const pushBoardToLayouts = (
 ): PushResult => {
   const layouts: LayoutPush[] = [];
   const errors: string[] = [];
+  const refreshed: PushResult["refreshed"] = [];
   let total = 0;
 
   for (const page of listPages(boardId)) {
@@ -110,6 +127,7 @@ export const pushBoardToLayouts = (
 
     let svg = readFileSync(layoutPath, "utf8");
     const moved: MovedDrawing[] = [];
+    const rebased: SyncElement[] = [];
 
     for (const [groupKey, els] of groups) {
       const first = els[0]!;
@@ -162,17 +180,93 @@ export const pushBoardToLayouts = (
         dy,
         warnings,
       });
+
+      // The layout now holds this transform, so it becomes the new baseline.
+      // Without this the same delta stays "pending" forever and every
+      // subsequent autosave rewrites it - our own writes are echo-suppressed,
+      // so the watcher will not refresh it for us.
+      for (const el of els) {
+        rebased.push({
+          ...el,
+          customData: {
+            ...(el.customData ?? {}),
+            bonsai: { ...el.customData!.bonsai!, groupTx: tx, groupTy: ty },
+          },
+          version: el.version + 1,
+          versionNonce: Math.floor(Math.random() * 2 ** 31),
+        } as unknown as SyncElement);
+      }
     }
 
     if (moved.length === 0) {
       continue;
     }
     if (write) {
+      // Record the hash before writing so the file watcher recognises this as
+      // our own change and does not bounce it straight back as an edit.
+      noteSelfWrite(layoutPath, svg);
       writeFileSync(layoutPath, svg, "utf8");
+
+      const accepted = applyUpdate(page.id, rebased);
+      if (accepted.length > 0) {
+        refreshed.push({ pageId: page.id, elements: accepted });
+      }
     }
     total += moved.length;
     layouts.push({ layoutPath, pageName: page.name, moved });
   }
 
-  return { written: write, layouts, errors, total };
+  return { written: write, layouts, errors, total, refreshed };
+};
+
+
+/* ------------------------------- autosave -------------------------------- */
+
+const pending = new Map<string, NodeJS.Timeout>();
+
+/**
+ * Write moved placements back to the layout, debounced.
+ *
+ * Safe to do continuously only because the layout watcher keeps our baseline
+ * fresh: without it, a stale `groupTx` would silently revert a reflow Bonsai had
+ * just made. The write is also surgical - it rewrites only the `<g id>` tags it
+ * knows about - so a drawing Bonsai just added is left untouched.
+ *
+ * Redlines never reach here; they carry no `customData.bonsai`.
+ */
+export const scheduleLayoutAutosave = (
+  boardId: string,
+  onWritten: (result: PushResult) => void,
+): void => {
+  clearTimeout(pending.get(boardId));
+  pending.set(
+    boardId,
+    setTimeout(() => {
+      pending.delete(boardId);
+      try {
+        const result = pushBoardToLayouts(boardId, true);
+        if (result.total > 0) {
+          console.log(
+            `[sketchspace] layout autosave ${boardId}: wrote ${result.total} placement(s)`,
+          );
+          onWritten(result);
+        }
+      } catch (error) {
+        console.error(`[sketchspace] layout autosave failed for ${boardId}:`, error);
+      }
+    }, AUTOSAVE_MS),
+  );
+};
+
+/** Flush any pending autosave immediately - used on shutdown. */
+export const flushLayoutAutosaves = (): void => {
+  for (const [boardId, timer] of pending) {
+    clearTimeout(timer);
+    try {
+      pushBoardToLayouts(boardId, true);
+    } catch {
+      // Best effort on the way out.
+    }
+  }
+  pending.clear();
 };

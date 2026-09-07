@@ -229,47 +229,72 @@ round-tripping.
 
 ## Bonsai / IFC integration
 
-SketchSpace can import a [Bonsai](https://bonsaibim.org/) sheet layout as a page,
-and write drawing positions back.
+SketchSpace imports a [Bonsai](https://bonsaibim.org/) sheet layout as a page and
+then stays in step with it **in both directions, automatically**.
 
 ```bash
 npm run import:layout -- "<project>/Models/Bonsai/layouts/A001 - SITE PLAN.svg"
-npm run export:layout -- <boardId> [--dry-run]
-# then in Blender:  bpy.ops.bim.create_sheets()
 ```
 
-**It reads the layout, never the built sheet.** Bonsai keeps two artefacts per
-sheet: `layouts/*.svg` is ~3 KB of structure and links; `sheets/*.svg` is the
-build output, often several MB of base64 PNG. The layout is the source - drawings
-can be regenerated from the model without disturbing the arrangement, and a
-change is a readable diff rather than a binary blob.
+After that there is nothing to press:
 
-Each `<g data-type="drawing">` carries `data-drawing`, an **IFC GlobalId**. That
-travels into `customData.bonsai.globalId` on the imported element, so a redline
-can be anchored to the model rather than to pixels - surviving regeneration,
-renaming and re-arrangement.
+- **Move a drawing here** and the layout SVG is rewritten about two seconds after
+  it settles. A small pill bottom-right reads `layout saved`. Run
+  `bpy.ops.bim.create_sheets()` in Blender to rebuild the sheet.
+- **Add, remove, or regenerate a drawing in Bonsai** and it appears here within
+  a couple of seconds. Bonsai writes the layout on `add_drawing`,
+  `remove_drawing`, `add_document` and the two `update_*_sizes` reflows;
+  `create_sheets` itself only writes `sheets/`, never the layout.
 
-Three details that are load-bearing:
+Redlines are never written to the layout - they carry no `customData.bonsai`, so
+nothing in the sync path matches them.
+
+### Why the layout, not the sheet
+
+Bonsai keeps `layouts/*.svg` (~3 KB of structure and links) alongside
+`sheets/*.svg` (the build output, often megabytes of base64 PNG). The layout is
+the source: drawings regenerate from the model without disturbing the
+arrangement, and a change is a readable diff rather than a binary blob.
+
+Each `<g data-type="drawing">` carries `data-drawing`, an **IFC GlobalId**, which
+travels into `customData.bonsai.globalId` - so a redline can eventually anchor to
+the model rather than to pixels.
+
+### Details that are load-bearing
 
 - **Write-back targets the group `transform`, not image `x`/`y`.** Bonsai's
   `build_drawings` copies each `<g>` into the built sheet with attributes intact,
   swapping only the `<image>` children, so the transform survives the build. It is
-  also what Inkscape writes when you drag a group, and it leaves Bonsai's own
-  coordinates - and its reflow logic - untouched.
+  what Inkscape writes when you drag a group, and it leaves Bonsai's own
+  coordinates and reflow logic untouched.
 - **The edit is string surgery on one attribute.** Re-serialising the XML would
   reformat the file and destroy the small diff that is the point of layouts.
+- **Writes refresh the stored baseline.** Our own writes are echo-suppressed by
+  content hash so the watcher ignores them, which means nothing else would
+  refresh `groupTx`; without it the same delta looks pending forever and every
+  change rewrites the whole sheet.
 - **Nested references are inlined on import.** A drawing may reference a raster
-  underlay relatively; once the SVG is base64'd into a `data:` URL there is no
-  base to resolve that against and the underlay silently vanishes. Bonsai's own
-  `sioserver.py` inlines for the same reason.
+  underlay relatively, and once the SVG is base64'd into a `data:` URL there is no
+  base to resolve it against. Bonsai's `sioserver.py` inlines for the same reason.
 
 Sibling images of one layout group (foreground + view-title) are bound into an
 Excalidraw group so they move together, and the titleblock imports locked,
 honouring Bonsai's `sodipodi:insensitive`.
 
+**Moving a placement edits your project repository within ~2 seconds.** `git diff`
+reviews a session; `git checkout --` undoes it.
+
 **Known cost:** inlining a large raster underlay is expensive - one site plan went
 from 865 KB to 19 MB. Serving assets over HTTP instead of inlining is the fix, and
 needs a raw-bytes file endpoint.
+
+### Repair and scripting
+
+`npm run export:layout -- <boardId> [--dry-run]` writes positions from the command
+line, and `npm run backfill:layout` repairs boards imported before write-back
+metadata existed. Both **refuse to run while the server is up** (except
+`--dry-run`, which is read-only): the server caches open pages in memory and would
+overwrite a direct database edit on its next flush.
 
 ## Deliberate limitations
 

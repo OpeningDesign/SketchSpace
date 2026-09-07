@@ -15,7 +15,7 @@ import {
   requireAuth,
   sessionCookie,
 } from "./auth.js";
-import { registerCollab } from "./collab.js";
+import { pageRoom, registerCollab } from "./collab.js";
 import { config } from "./config.js";
 import {
   createBoard,
@@ -27,7 +27,8 @@ import {
   recordFile,
   renameBoard,
 } from "./db.js";
-import { pushBoardToLayouts } from "./layoutWriter.js";
+import { flushLayoutAutosaves, pushBoardToLayouts } from "./layoutWriter.js";
+import { startLayoutWatcher } from "./layoutWatcher.js";
 import { flushAll } from "./store.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -211,6 +212,12 @@ const io = new Server(httpServer, {
 
 registerCollab(io);
 
+// Pull in changes Bonsai makes to imported layouts - drawings added or removed,
+// and the reflow that follows a regenerated drawing changing size.
+const stopLayoutWatcher = startLayoutWatcher((pageId, elements) => {
+  io.to(pageRoom(pageId)).emit("scene:patch", { pageId, elements });
+});
+
 httpServer.on("error", (error: NodeJS.ErrnoException) => {
   if (error.code === "EADDRINUSE") {
     console.error(
@@ -238,6 +245,8 @@ const shutdown = (signal: string) => {
   }
   shuttingDown = true;
   console.log(`[sketchspace] ${signal} received, flushing scenes...`);
+  stopLayoutWatcher();
+  flushLayoutAutosaves();
   flushAll();
   io.close(() => {
     httpServer.close(() => process.exit(0));

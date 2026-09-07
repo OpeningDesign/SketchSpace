@@ -1,4 +1,4 @@
-import type { Board, PushResult } from "./types";
+import type { Board } from "./types";
 
 const json = async <T,>(res: Response): Promise<T> => {
   if (!res.ok) {
@@ -40,17 +40,6 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
     }).then((r) => json(r)),
-
-  /**
-   * Write drawing positions back into the board's Bonsai layout.
-   * Always preview with dryRun before writing - this touches the user's repo.
-   */
-  pushLayout: (boardId: string, dryRun: boolean) =>
-    fetch(`/api/boards/${boardId}/push-layout`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dryRun }),
-    }).then((r) => json<PushResult>(r)),
 
   uploadFile: (
     boardId: string,

@@ -6,12 +6,25 @@
  *   # then in Blender:  bpy.ops.bim.create_sheets()
  *
  * The rules live in server/src/layoutWriter.ts so both paths behave identically.
+ *
+ * Since positions are now written back automatically as you move things, this is
+ * mainly for scripting and debugging. A write requires the server to be stopped;
+ * --dry-run works either way.
  */
 import { pushBoardToLayouts } from "../dist/server/layoutWriter.js";
+import { config } from "../dist/server/config.js";
 import { getBoard } from "../dist/server/db.js";
+import { requireServerStopped } from "./lib/require-server-stopped.mjs";
 
 const boardId = process.argv[2];
 const dryRun = process.argv.includes("--dry-run");
+
+// A real write also refreshes each placement's stored baseline, which is scene
+// state the running server caches and would overwrite. Previewing is read-only
+// and always safe.
+if (!dryRun) {
+  await requireServerStopped(config.port);
+}
 
 if (!boardId) {
   console.error("\nusage: npm run export:layout -- <boardId> [--dry-run]\n");

@@ -9,6 +9,7 @@ import {
   renamePage,
   touchBoard,
 } from "./db.js";
+import { scheduleLayoutAutosave } from "./layoutWriter.js";
 import { addViewer, applyUpdate, getElements, removeViewer } from "./store.js";
 
 import type { Presence, SyncElement } from "./types.js";
@@ -27,7 +28,7 @@ import type { Server, Socket } from "socket.io";
  * and still sees pages being added and renamed.
  */
 const boardRoom = (boardId: string) => `board:${boardId}`;
-const pageRoom = (pageId: string) => `page:${pageId}`;
+export const pageRoom = (pageId: string) => `page:${pageId}`;
 
 const COLORS = [
   "#e03131",
@@ -184,6 +185,31 @@ export const registerCollab = (io: Server): void => {
 
         if (presence.boardId) {
           touchBoard(presence.boardId);
+
+          // Moving an imported Bonsai placement is an edit to the layout, not
+          // just to the canvas. Write it back on a debounce so the layout stays
+          // the source of truth without anyone pressing a button. Redlines carry
+          // no `bonsai` metadata and never trigger this.
+          const touchesLayout = accepted.some(
+            (el) =>
+              (el.customData as { bonsai?: { layout?: string } } | undefined)
+                ?.bonsai?.layout,
+          );
+          if (touchesLayout) {
+            const boardId = presence.boardId;
+            scheduleLayoutAutosave(boardId, (result) => {
+              // Baselines moved with the write; push them to open clients so
+              // their copies agree with the layout on disk.
+              for (const { pageId, elements } of result.refreshed) {
+                io.to(pageRoom(pageId)).emit("scene:patch", { pageId, elements });
+              }
+              io.to(boardRoom(boardId)).emit("layout:pushed", {
+                boardId,
+                total: result.total,
+                at: Date.now(),
+              });
+            });
+          }
         }
       },
     );

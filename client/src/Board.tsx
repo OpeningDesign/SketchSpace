@@ -1,7 +1,6 @@
 import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
 import { useEffect, useMemo, useState } from "react";
 
-import { PushDialog } from "./PushDialog";
 import { getSocket } from "./socket";
 import { TabStrip } from "./TabStrip";
 import { useCollab } from "./useCollab";
@@ -26,7 +25,32 @@ export const Board = ({ boardId, onExit }: Props) => {
     };
   }, []);
 
-  const [pushOpen, setPushOpen] = useState(false);
+  // The layout is written back automatically when a placement settles; this is
+  // just so the change is visible rather than silent.
+  const [savedAt, setSavedAt] = useState<{ total: number; at: number } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    const socket = getSocket();
+    const onPushed = (p: { boardId: string; total: number; at: number }) => {
+      if (p.boardId === boardId) {
+        setSavedAt({ total: p.total, at: p.at });
+      }
+    };
+    socket.on("layout:pushed", onPushed);
+    return () => {
+      socket.off("layout:pushed", onPushed);
+    };
+  }, [boardId]);
+
+  useEffect(() => {
+    if (!savedAt) {
+      return;
+    }
+    const t = setTimeout(() => setSavedAt(null), 4000);
+    return () => clearTimeout(t);
+  }, [savedAt]);
 
   const others = collab.users.filter(
     (u) => u.socketId !== getSocket().id,
@@ -49,16 +73,6 @@ export const Board = ({ boardId, onExit }: Props) => {
           ‹ Boards
         </button>
         <span className="board__name">{collab.board?.name ?? "…"}</span>
-
-        {hasBonsaiPlacements && (
-          <button
-            className="board__push"
-            onClick={() => setPushOpen(true)}
-            title="Write moved drawings back into the Bonsai layout"
-          >
-            Push to Bonsai
-          </button>
-        )}
 
         <div className="board__users">
           {others.map((u) => (
@@ -90,6 +104,22 @@ export const Board = ({ boardId, onExit }: Props) => {
       />
 
       <div className="board__canvas">
+        {/*
+          Sits in the canvas layer rather than the header, tucked to the left of
+          Excalidraw's help button, so the layout write is visible where the
+          drawing is without taking up chrome.
+        */}
+        {hasBonsaiPlacements && (
+          <span
+            className="board__sync"
+            title="Drawing positions are written back to the Bonsai layout automatically"
+          >
+            {savedAt
+              ? `layout saved — ${savedAt.total} placement${savedAt.total === 1 ? "" : "s"}`
+              : "layout linked"}
+          </span>
+        )}
+
         <Excalidraw
           // Renamed from `excalidrawAPI` upstream in #10870, after the 0.18.1
           // npm release. We track the local checkout, so we use the new name.
@@ -122,9 +152,6 @@ export const Board = ({ boardId, onExit }: Props) => {
         </Excalidraw>
       </div>
 
-      {pushOpen && (
-        <PushDialog boardId={boardId} onClose={() => setPushOpen(false)} />
-      )}
     </div>
   );
 };
