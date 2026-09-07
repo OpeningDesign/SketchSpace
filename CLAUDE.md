@@ -4,6 +4,9 @@ Self-hosted collaborative multi-page whiteboard. React + Vite client wrapping
 the Excalidraw editor; Express + socket.io + SQLite server. Read `README.md`
 first — it covers the architecture. This file covers what bites you.
 
+`NOTES.md` is the longer record: lessons learned (mostly silent failures, each
+with symptom and cause) and the roadmap. Add to it when something costs an hour.
+
 ## The editor is vendored, not an npm dependency
 
 `@excalidraw/excalidraw` is **deliberately absent from `package.json`**. The

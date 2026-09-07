@@ -12,6 +12,8 @@ page model and a collaboration server you own. The editor itself is vendored
 from a local excalidraw checkout so your own editor patches come along; see
 [Where the editor comes from](#where-the-editor-comes-from).
 
+See [NOTES.md](NOTES.md) for lessons learned and the roadmap.
+
 - **Boards** hold an ordered list of **pages**. One tab strip, one link.
 - **Real-time collaboration** on every page, with per-page cursors and
   board-wide presence.
