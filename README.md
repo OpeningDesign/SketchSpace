@@ -227,6 +227,50 @@ without re-uploading. They are kept as data URLs exactly as the editor produced
 them — about 33% larger on disk than raw binary, in exchange for exact
 round-tripping.
 
+## Bonsai / IFC integration
+
+SketchSpace can import a [Bonsai](https://bonsaibim.org/) sheet layout as a page,
+and write drawing positions back.
+
+```bash
+npm run import:layout -- "<project>/Models/Bonsai/layouts/A001 - SITE PLAN.svg"
+npm run export:layout -- <boardId> [--dry-run]
+# then in Blender:  bpy.ops.bim.create_sheets()
+```
+
+**It reads the layout, never the built sheet.** Bonsai keeps two artefacts per
+sheet: `layouts/*.svg` is ~3 KB of structure and links; `sheets/*.svg` is the
+build output, often several MB of base64 PNG. The layout is the source - drawings
+can be regenerated from the model without disturbing the arrangement, and a
+change is a readable diff rather than a binary blob.
+
+Each `<g data-type="drawing">` carries `data-drawing`, an **IFC GlobalId**. That
+travels into `customData.bonsai.globalId` on the imported element, so a redline
+can be anchored to the model rather than to pixels - surviving regeneration,
+renaming and re-arrangement.
+
+Three details that are load-bearing:
+
+- **Write-back targets the group `transform`, not image `x`/`y`.** Bonsai's
+  `build_drawings` copies each `<g>` into the built sheet with attributes intact,
+  swapping only the `<image>` children, so the transform survives the build. It is
+  also what Inkscape writes when you drag a group, and it leaves Bonsai's own
+  coordinates - and its reflow logic - untouched.
+- **The edit is string surgery on one attribute.** Re-serialising the XML would
+  reformat the file and destroy the small diff that is the point of layouts.
+- **Nested references are inlined on import.** A drawing may reference a raster
+  underlay relatively; once the SVG is base64'd into a `data:` URL there is no
+  base to resolve that against and the underlay silently vanishes. Bonsai's own
+  `sioserver.py` inlines for the same reason.
+
+Sibling images of one layout group (foreground + view-title) are bound into an
+Excalidraw group so they move together, and the titleblock imports locked,
+honouring Bonsai's `sodipodi:insensitive`.
+
+**Known cost:** inlining a large raster underlay is expensive - one site plan went
+from 865 KB to 19 MB. Serving assets over HTTP instead of inlining is the fix, and
+needs a raw-bytes file endpoint.
+
 ## Deliberate limitations
 
 - **The password is the only boundary.** Anyone who knows it can read, edit, and

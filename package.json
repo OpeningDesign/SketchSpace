@@ -15,12 +15,15 @@
     "build:server": "tsc -p server/tsconfig.json",
     "start": "node --env-file-if-exists=.env dist/server/index.js",
     "typecheck": "tsc -p server/tsconfig.json --noEmit && tsc -p client/tsconfig.json --noEmit",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "import:layout": "node --env-file-if-exists=.env scripts/import-layout.mjs",
+    "export:layout": "node --env-file-if-exists=.env scripts/export-layout.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
     "cookie": "^1.0.2",
     "express": "^4.21.2",
+    "fast-xml-parser": "^5.11.1",
     "socket.io": "^4.8.1"
   },
   "devDependencies": {

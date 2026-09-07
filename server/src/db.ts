@@ -58,12 +58,47 @@ db.exec(`
   );
 
   CREATE TABLE IF NOT EXISTS files (
-    id          TEXT PRIMARY KEY,
+    id          TEXT NOT NULL,
     board_id    TEXT NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
     mime_type   TEXT NOT NULL,
-    created_at  INTEGER NOT NULL
+    created_at  INTEGER NOT NULL,
+    PRIMARY KEY (id, board_id)
   );
 `);
+
+/**
+ * Migration: `files.id` was originally a global PRIMARY KEY. Because file ids
+ * are content-addressed, the same image used on two boards collided - the
+ * second board's INSERT hit ON CONFLICT DO NOTHING and the file was never
+ * registered to it, so every fetch for that board 404'd and the image rendered
+ * as a broken placeholder. The bytes on disk are keyed `{boardId}.{fileId}`
+ * and were always correct; only this index was wrong.
+ */
+{
+  const ddl = (
+    db
+      .prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='files'`)
+      .get() as { sql: string } | undefined
+  )?.sql;
+
+  if (ddl && !/PRIMARY KEY\s*\(\s*id\s*,\s*board_id\s*\)/i.test(ddl)) {
+    console.log("[sketchspace] migrating files table to (id, board_id) key");
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE files_new (
+          id          TEXT NOT NULL,
+          board_id    TEXT NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+          mime_type   TEXT NOT NULL,
+          created_at  INTEGER NOT NULL,
+          PRIMARY KEY (id, board_id)
+        );
+        INSERT OR IGNORE INTO files_new SELECT id, board_id, mime_type, created_at FROM files;
+        DROP TABLE files;
+        ALTER TABLE files_new RENAME TO files;
+      `);
+    })();
+  }
+}
 
 type BoardRow = {
   id: string;
@@ -140,7 +175,7 @@ const stmts = {
 
   insertFile: db.prepare(
     `INSERT INTO files (id, board_id, mime_type, created_at) VALUES (?, ?, ?, ?)
-     ON CONFLICT(id) DO NOTHING`,
+     ON CONFLICT(id, board_id) DO NOTHING`,
   ),
   getFile: db.prepare(
     `SELECT id, mime_type FROM files WHERE id = ? AND board_id = ?`,
