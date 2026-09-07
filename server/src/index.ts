@@ -27,6 +27,7 @@ import {
   recordFile,
   renameBoard,
 } from "./db.js";
+import { pushBoardToLayouts } from "./layoutWriter.js";
 import { flushAll } from "./store.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -163,6 +164,33 @@ app.get<{ boardId: string }>("/api/boards/:boardId/files", requireAuth, async (r
 
   res.json({ files });
 });
+
+/* --------------------------------- bonsai -------------------------------- */
+
+/**
+ * Write drawing positions back into the board's Bonsai layout.
+ *
+ * POST with {dryRun: true} to preview: the response lists what would move, in
+ * millimetres, without touching a file. This writes into the user's project
+ * repository, so the UI always previews first and asks before committing to it.
+ */
+app.post<{ boardId: string }>(
+  "/api/boards/:boardId/push-layout",
+  requireAuth,
+  (req, res) => {
+    const { boardId } = req.params;
+    if (!getBoard(boardId)) {
+      res.status(404).json({ error: "not found" });
+      return;
+    }
+    const dryRun = req.body?.dryRun !== false;
+    try {
+      res.json(pushBoardToLayouts(boardId, !dryRun));
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  },
+);
 
 /* --------------------------------- client -------------------------------- */
 

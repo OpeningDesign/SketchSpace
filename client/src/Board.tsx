@@ -1,6 +1,7 @@
 import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { PushDialog } from "./PushDialog";
 import { getSocket } from "./socket";
 import { TabStrip } from "./TabStrip";
 import { useCollab } from "./useCollab";
@@ -25,9 +26,21 @@ export const Board = ({ boardId, onExit }: Props) => {
     };
   }, []);
 
+  const [pushOpen, setPushOpen] = useState(false);
+
   const others = collab.users.filter(
     (u) => u.socketId !== getSocket().id,
   );
+
+  // Only offer the Bonsai push when this board actually came from a layout.
+  const hasBonsaiPlacements = useMemo(() => {
+    const els = collab.excalidrawAPI?.getSceneElements() ?? [];
+    return els.some(
+      (el) =>
+        (el.customData as { bonsai?: { layout?: string } } | undefined)?.bonsai
+          ?.layout,
+    );
+  }, [collab.excalidrawAPI, collab.activePageId]);
 
   return (
     <div className="board">
@@ -36,6 +49,16 @@ export const Board = ({ boardId, onExit }: Props) => {
           ‹ Boards
         </button>
         <span className="board__name">{collab.board?.name ?? "…"}</span>
+
+        {hasBonsaiPlacements && (
+          <button
+            className="board__push"
+            onClick={() => setPushOpen(true)}
+            title="Write moved drawings back into the Bonsai layout"
+          >
+            Push to Bonsai
+          </button>
+        )}
 
         <div className="board__users">
           {others.map((u) => (
@@ -98,6 +121,10 @@ export const Board = ({ boardId, onExit }: Props) => {
           </MainMenu>
         </Excalidraw>
       </div>
+
+      {pushOpen && (
+        <PushDialog boardId={boardId} onClose={() => setPushOpen(false)} />
+      )}
     </div>
   );
 };
