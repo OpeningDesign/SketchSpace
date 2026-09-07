@@ -114,6 +114,28 @@ export const resolveHref = (href: string, layoutDir: string): string => {
 const asArray = <T,>(v: T | T[] | undefined): T[] =>
   v === undefined ? [] : Array.isArray(v) ? v : [v];
 
+/**
+ * Read an attribute by local name, ignoring its namespace prefix.
+ *
+ * Inkscape rewrites namespace prefixes when it saves, and not consistently: one
+ * sheet has `xmlns:xlink` and `xlink:href`, another binds the same namespace as
+ * `ns3` and writes `ns3:href`. Matching the prefix literally makes a whole sheet
+ * parse to zero placements with no error at all.
+ */
+const attr = (node: Record<string, any>, localName: string): string | undefined => {
+  const direct = node[`@_${localName}`];
+  if (direct !== undefined) {
+    return String(direct);
+  }
+  const suffix = `:${localName}`;
+  for (const key of Object.keys(node)) {
+    if (key.startsWith("@_") && key.slice(2).endsWith(suffix)) {
+      return String(node[key]);
+    }
+  }
+  return undefined;
+};
+
 const MIME_BY_EXT: Record<string, string> = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
@@ -146,7 +168,7 @@ export const inlineNestedImages = (
   let inlined = 0;
 
   const out = svg.replace(
-    /(xlink:href|href)\s*=\s*"([^"]+)"/g,
+    /((?:[A-Za-z_][\w.-]*:)?href)\s*=\s*"([^"]+)"/g,
     (match, attr: string, href: string) => {
       if (/^(data:|https?:|#)/i.test(href)) {
         return match;
@@ -195,8 +217,8 @@ export const parseLayout = (layoutPath: string): Layout => {
         ? dataType
         : "other";
 
-    const { tx, ty } = parseTranslate(g["@_transform"]);
-    const locked = String(g["@_sodipodi:insensitive"] ?? "") === "true";
+    const { tx, ty } = parseTranslate(attr(g, "transform"));
+    const locked = attr(g, "insensitive") === "true";
     const globalId =
       (g["@_data-drawing"] as string | undefined) ??
       (g["@_data-document"] as string | undefined) ??
@@ -207,7 +229,7 @@ export const parseLayout = (layoutPath: string): Layout => {
     const groupKey = String(g["@_id"] ?? stepId ?? `g${placements.length}`);
 
     for (const img of asArray<Record<string, any>>(g.image)) {
-      const rawHref = String(img["@_xlink:href"] ?? img["@_href"] ?? "");
+      const rawHref = attr(img, "href") ?? "";
       if (!rawHref) {
         continue;
       }

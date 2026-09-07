@@ -89,6 +89,13 @@ writes ours back on a debounce. The README explains the model. What will bite:
 - Position is `<g transform>` *composed with* `<image x/y>`. Bonsai writes the
   latter, Inkscape the former; both count.
 - Layout hrefs are URL-encoded with backslashes (`..%5Cdrawings%5C...`).
+- **Read SVG attributes by local name, never by prefix.** Inkscape rewrites
+  namespace prefixes on save and not consistently - one sheet has `xlink:href`,
+  another binds the same namespace as `ns3` and writes `ns3:href`. Matching the
+  prefix made a whole sheet parse to zero placements with no error.
+- **Assets are raw bytes served over HTTP**, not data URLs in JSON (see
+  `server/src/assets.ts`). But nested raster references inside a drawing SVG must
+  stay inlined: SVG-in-`<img>` is secure static mode and fetches nothing.
 
 **Never write page_scenes directly while the server runs.** It caches open pages
 and overwrites on flush - the edit appears to work, then vanishes. Use

@@ -1,6 +1,5 @@
 import { createServer } from "node:http";
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,6 +14,13 @@ import {
   requireAuth,
   sessionCookie,
 } from "./auth.js";
+import {
+  assetUrl,
+  decodeDataURL,
+  migrateDataUrlAssets,
+  readAsset,
+  writeAsset,
+} from "./assets.js";
 import { pageRoom, registerCollab } from "./collab.js";
 import { config } from "./config.js";
 import {
@@ -33,7 +39,6 @@ import { flushAll } from "./store.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const clientDir = path.resolve(here, "../client");
-const filesDir = path.join(config.dataDir, "files");
 
 const app = express();
 app.disable("x-powered-by");
@@ -103,14 +108,10 @@ app.delete<{ boardId: string }>("/api/boards/:boardId", requireAuth, (req, res) 
 /* --------------------------------- files --------------------------------- */
 
 /**
- * Excalidraw hands us images as data URLs. We store them verbatim, one file per
- * id, rather than decoding to binary - it costs ~33% on disk and buys exact
- * round-tripping of whatever the editor produced.
- *
- * Files are per board, not per page: an image can be moved between pages, and
- * sharing one blob across them is the point.
+ * Assets are stored as raw bytes and served from here, not embedded as data
+ * URLs in JSON. See server/src/assets.ts for why.
  */
-app.post<{ boardId: string }>("/api/boards/:boardId/files", requireAuth, async (req, res) => {
+app.post<{ boardId: string }>("/api/boards/:boardId/files", requireAuth, (req, res) => {
   const { boardId } = req.params;
   if (!getBoard(boardId)) {
     res.status(404).json({ error: "not found" });
@@ -128,12 +129,23 @@ app.post<{ boardId: string }>("/api/boards/:boardId/files", requireAuth, async (
     return;
   }
 
-  await writeFile(path.join(filesDir, `${boardId}.${id}`), dataURL, "utf8");
-  recordFile(id, boardId, mimeType);
+  // The editor hands us a data URL; store the bytes it carries.
+  const decoded = decodeDataURL(dataURL);
+  if (!decoded) {
+    res.status(400).json({ error: "expected a data URL" });
+    return;
+  }
+
+  writeAsset(boardId, id, decoded.bytes);
+  recordFile(id, boardId, mimeType || decoded.mimeType);
   res.json({ ok: true });
 });
 
-app.get<{ boardId: string }>("/api/boards/:boardId/files", requireAuth, async (req, res) => {
+/**
+ * Metadata only. `dataURL` is a same-origin URL rather than the bytes, so the
+ * response stays small and the browser fetches and caches each asset itself.
+ */
+app.get<{ boardId: string }>("/api/boards/:boardId/files", requireAuth, (req, res) => {
   const { boardId } = req.params;
   const ids = String(req.query.ids ?? "")
     .split(",")
@@ -146,25 +158,47 @@ app.get<{ boardId: string }>("/api/boards/:boardId/files", requireAuth, async (r
     if (!record) {
       continue;
     }
-    try {
-      const dataURL = await readFile(
-        path.join(filesDir, `${boardId}.${id}`),
-        "utf8",
-      );
-      files.push({
-        id,
-        mimeType: record.mime_type,
-        dataURL,
-        created: Date.now(),
-      });
-    } catch {
-      // Recorded in the db but missing on disk - skip rather than fail the
-      // whole batch.
-    }
+    files.push({
+      id,
+      mimeType: record.mime_type,
+      dataURL: assetUrl(boardId, id),
+      created: Date.now(),
+    });
   }
-
   res.json({ files });
 });
+
+/**
+ * The bytes. Ids are content hashes, so a response can be cached forever -
+ * which is what stops a title block shared by fourteen sheets being refetched
+ * fourteen times.
+ */
+app.get<{ boardId: string; fileId: string }>(
+  "/api/boards/:boardId/assets/:fileId",
+  requireAuth,
+  (req, res) => {
+    const { boardId, fileId } = req.params;
+    if (!/^[A-Za-z0-9_-]{1,255}$/.test(fileId)) {
+      res.status(400).end();
+      return;
+    }
+    const record = findFile(fileId, boardId);
+    if (!record) {
+      res.status(404).end();
+      return;
+    }
+    try {
+      const bytes = readAsset(boardId, fileId);
+      res.setHeader("Content-Type", record.mime_type);
+      // Private: the asset is behind the instance password.
+      res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
+      res.setHeader("ETag", `"${fileId}"`);
+      res.send(bytes);
+    } catch {
+      res.status(404).end();
+    }
+  },
+);
 
 /* --------------------------------- bonsai -------------------------------- */
 
@@ -204,6 +238,9 @@ if (existsSync(clientDir)) {
 }
 
 /* --------------------------------- server -------------------------------- */
+
+// Assets used to be stored as data URL text; rewrite any that still are.
+migrateDataUrlAssets();
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {

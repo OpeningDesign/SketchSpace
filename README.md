@@ -232,9 +232,17 @@ round-tripping.
 SketchSpace imports a [Bonsai](https://bonsaibim.org/) sheet layout as a page and
 then stays in step with it **in both directions, automatically**.
 
+**One board per IFC file, one tab per sheet.** A drawing set is a board; each
+sheet is a page.
+
 ```bash
-npm run import:layout -- "<project>/Models/Bonsai/layouts/A001 - SITE PLAN.svg"
+npm run import:sheets -- "<project>/Models/Bonsai"           # the whole set
+npm run import:sheets -- "<...>/layouts/A001 - SITE PLAN.svg"  # a single sheet
+npm run import:sheets -- <path> --board <boardId>            # add tabs to a board
 ```
+
+The board takes its name from the `.ifc` file sitting beside `layouts/`, since
+Bonsai resolves every drawing path relative to that file's directory.
 
 After that there is nothing to press:
 
@@ -284,9 +292,25 @@ honouring Bonsai's `sodipodi:insensitive`.
 **Moving a placement edits your project repository within ~2 seconds.** `git diff`
 reviews a session; `git checkout --` undoes it.
 
-**Known cost:** inlining a large raster underlay is expensive - one site plan went
-from 865 KB to 19 MB. Serving assets over HTTP instead of inlining is the fix, and
-needs a raw-bytes file endpoint.
+### Assets
+
+Assets are stored as **raw bytes** and served from
+`GET /api/boards/:id/assets/:fileId`, not embedded as `data:` URLs in JSON.
+Excalidraw loads images with `image.src = dataURL` on a plain `new Image()`, so a
+same-origin URL works - and being same-origin keeps the canvas untainted, so PNG
+and SVG export still work. Ids are content hashes, so responses are served
+`immutable`: a title block shared by fourteen sheets is fetched once.
+
+On a real set this is the difference between a 26 MB JSON response per sheet and
+a 1.7 KB one.
+
+**What it does not fix:** a raster underlay referenced *inside* a drawing SVG must
+still be inlined as a data URL. An SVG loaded through `<img>` runs in secure
+static mode and cannot fetch external resources at all, so an HTTP reference
+there renders nothing - the same wall a relative reference hits. One site plan is
+19.7 MB for this reason. It is now fetched once and cached rather than re-sent,
+but the bytes are still there. Gzipping the asset endpoint and downsampling
+underlays at import are the remaining levers.
 
 ### Repair and scripting
 

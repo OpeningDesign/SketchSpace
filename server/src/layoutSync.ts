@@ -15,11 +15,11 @@
  * matches them.
  */
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
+import { writeAsset } from "./assets.js";
 import { inlineNestedImages, MM_TO_PX, parseLayout } from "./bonsaiLayout.js";
-import { config } from "./config.js";
 import { newId, recordFile } from "./db.js";
 import { indexBetween } from "./fracIndex.js";
 
@@ -62,11 +62,7 @@ const storeLinkedSvg = (href: string, boardId: string): string | null => {
   const buf = Buffer.from(svg, "utf8");
   const fileId = createHash("sha256").update(buf).digest("hex").slice(0, 40);
 
-  writeFileSync(
-    path.join(config.dataDir, "files", `${boardId}.${fileId}`),
-    `data:image/svg+xml;base64,${buf.toString("base64")}`,
-    "utf8",
-  );
+  writeAsset(boardId, fileId, buf);
   recordFile(fileId, boardId, "image/svg+xml");
   return fileId;
 };

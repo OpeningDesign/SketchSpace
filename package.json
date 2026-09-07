@@ -16,7 +16,7 @@
     "start": "node --env-file-if-exists=.env dist/server/index.js",
     "typecheck": "tsc -p server/tsconfig.json --noEmit && tsc -p client/tsconfig.json --noEmit",
     "smoke": "node scripts/smoke.mjs",
-    "import:layout": "node --env-file-if-exists=.env scripts/import-layout.mjs",
+    "import:sheets": "node --env-file-if-exists=.env scripts/import-sheets.mjs",
     "export:layout": "node --env-file-if-exists=.env scripts/export-layout.mjs",
     "backfill:layout": "node --env-file-if-exists=.env scripts/backfill-layout-meta.mjs"
   },
