@@ -27,8 +27,8 @@ npm (see [Where the editor comes from](#where-the-editor-comes-from)), so build
 it once first:
 
 ```bash
-cd ../excalidraw && yarn build:packages
-cd ../sketchspace && npm install && npm run sync:editor
+cd ../excalidraw && git switch SketchSpace && yarn build:packages
+cd ../SketchSpace && npm install && npm run sync:editor
 
 cp .env.example .env          # then set SKETCHSPACE_PASSWORD
 npm run build
@@ -112,9 +112,18 @@ there — a custom preference, a behaviour fix — is actually in this app. The 
 package only ever contains what upstream has released.
 
 ```bash
-cd ../excalidraw && yarn build:packages   # after any editor change
-cd ../sketchspace && npm run sync:editor
+cd ../excalidraw
+git switch SketchSpace                    # our long-lived editor branch
+yarn build:packages                       # after any editor change
+cd ../SketchSpace && npm run sync:editor
 ```
+
+Editor work lives on the **`SketchSpace` branch** of
+[OpeningDesign/excalidraw](https://github.com/OpeningDesign/excalidraw), a fork of
+upstream and that fork's default branch. `master` there stays a pristine mirror of
+`excalidraw/excalidraw`, so `git log master..SketchSpace` answers "what is ours?"
+exactly. To take upstream changes: `git fetch upstream && git merge upstream/master`
+on `SketchSpace`, then re-run `sync:editor` and `npm run typecheck`.
 
 `scripts/sync-editor.mjs` copies the built `prod` and `types` output of five
 packages — `excalidraw`, `common`, `element`, `math`, `fractional-indexing` — and

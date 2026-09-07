@@ -18,9 +18,14 @@ That yields two editors in the tree and no clear answer as to which is live.
 The correct fix is almost always:
 
 ```bash
-cd ../excalidraw && yarn build:packages
-cd ../sketchspace && npm run sync:editor && npm run typecheck
+cd ../excalidraw && git switch SketchSpace && yarn build:packages
+cd ../SketchSpace && npm run sync:editor && npm run typecheck
 ```
+
+Editor changes belong on the **`SketchSpace` branch** of OpeningDesign/excalidraw
+(the fork's default). Never commit to `master` there - it mirrors upstream, which
+is what keeps `git log master..SketchSpace` meaning "our patches". `upstream` has
+its push URL disabled on purpose.
 
 Five packages are vendored (`excalidraw`, `common`, `element`, `math`,
 `fractional-indexing`) because upstream's `buildPackage.js` marks the four
