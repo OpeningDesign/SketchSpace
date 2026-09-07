@@ -98,6 +98,11 @@ relatively inside a drawing SVG must be inlined as a data URL before the SVG
 itself becomes one. Bonsai's `sioserver.py` inlines for exactly this reason.
 Rewriting the reference to an HTTP URL does not help — it renders nothing.
 
+**The viewport is readable and settable in scene coordinates.**
+`getVisibleSceneBounds(appState)` returns `[x1, y1, x2, y2]` and
+`setViewport({ target: bounds, fit })` takes them back, with `onScrollChange` to
+know when to look. That is the whole of URL view sharing - no coordinate maths.
+
 **A same-origin URL works as `dataURL`.** Excalidraw does `image.src = dataURL` on
 a plain `new Image()`, so assets can be served over HTTP rather than embedded as
 base64 in JSON. Same-origin also keeps the canvas untainted, so PNG/SVG export

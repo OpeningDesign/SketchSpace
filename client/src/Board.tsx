@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getSocket } from "./socket";
 import { TabStrip } from "./TabStrip";
 import { useCollab } from "./useCollab";
+import { useViewLink } from "./useViewLink";
 
 type Props = {
   boardId: string;
@@ -14,6 +15,14 @@ type Props = {
 
 export const Board = ({ boardId, initialPageId, onExit }: Props) => {
   const collab = useCollab(boardId, initialPageId ?? null);
+
+  // Keeps the address bar pointing at the sheet and region on screen, so a link
+  // shares the view rather than just the drawing.
+  const { onViewChange } = useViewLink(
+    collab.excalidrawAPI,
+    boardId,
+    collab.activePageId,
+  );
 
   // Let other people see a name rather than "Guest a1b2".
   useEffect(() => {
@@ -128,6 +137,7 @@ export const Board = ({ boardId, initialPageId, onExit }: Props) => {
           onExcalidrawAPI={collab.setExcalidrawAPI}
           onChange={collab.onChange}
           onPointerUpdate={collab.onPointerUpdate}
+          onScrollChange={onViewChange}
           isCollaborating
           UIOptions={{ canvasActions: { loadScene: false } }}
         >

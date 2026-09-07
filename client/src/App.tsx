@@ -13,7 +13,8 @@ import { disconnectSocket } from "./socket";
  * land on the right tab.
  */
 const readRoute = (): { boardId: string; pageId: string | null } | null => {
-  const match = /^#\/board\/([A-Za-z0-9_-]+)(?:\/([A-Za-z0-9_-]+))?$/.exec(
+  // Tolerate a trailing `?v=` viewport, which useViewLink maintains.
+  const match = /^#\/board\/([A-Za-z0-9_-]+)(?:\/([A-Za-z0-9_-]+))?(?:\?.*)?$/.exec(
     window.location.hash,
   );
   return match ? { boardId: match[1]!, pageId: match[2] ?? null } : null;

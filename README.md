@@ -94,6 +94,28 @@ npm run smoke -- http://localhost:3111 dev
 
 All 18 checks should report `ok`.
 
+## Sharing a view
+
+The address bar always points at what is on screen:
+
+```
+#/board/<boardId>/<pageId>?v=<x1>,<y1>,<x2>,<y2>
+```
+
+Pan or zoom and it rewrites itself (via `replaceState`, throttled, so the back
+button stays useful). Copy the URL and you have shared the sheet *and the region*
+- "look at this detail on A501" becomes a link rather than a description, which
+matters on a construction sheet where most of the page is not the thing you mean.
+
+Opening such a link frames that region with `fit: "contain"`. Only the box is
+encoded, not a zoom level, so a link resolves to the same *content* on a laptop
+and a 4K monitor rather than reproducing someone else's pixel zoom.
+
+The idea is lifted from [first-draft's URL view sharing](https://gitlab.com/MeldCE/first-draft/-/merge_requests/69),
+which encodes the viewport as `l/t/r/b/z` query parameters. Excalidraw's
+`getVisibleSceneBounds` and `setViewport({ target })` speak scene-coordinate
+boxes directly, so no coordinate maths of our own is involved.
+
 ## Configuration
 
 | Variable                    | Required | Default   | Notes                                                        |
