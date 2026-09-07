@@ -100,6 +100,23 @@ inlined them, which is why depending on the published package needed none of the
 vendoring machinery. Building from master does — five packages plus ~31
 third-party runtime imports.
 
+### Working in the editor fork
+
+**Update snapshots one file at a time.** Running `vitest --update` across several
+files gave `history.test.tsx` a `number of renders` value of 3 where running it
+alone produces 6 — the batch write baked in the wrong number, and the test then
+failed on its own afterwards. It looked exactly like a regression from the change
+under test, and only stashing and re-running on a clean tree distinguished the
+two. Render counts are sensitive to how tests are batched; snapshot them the way
+they normally run.
+
+**Fork-only changes stay off the upstream PR branch.** Defaulting `wheelBehavior`
+to `zoom` lives on `SketchSpace` and must not reach
+`feat/wheel-zoom-preference` — the whole basis on which
+[excalidraw#12051](https://github.com/excalidraw/excalidraw/pull/12051) is offered
+is that existing behaviour is unchanged. `git log master..SketchSpace` is the
+check: everything it lists is ours and deliberate.
+
 ### Environment
 
 **Keep SQLite out of Dropbox.** WAL mode holds `.db`, `.db-shm` and `.db-wal` open
