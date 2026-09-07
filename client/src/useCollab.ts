@@ -28,7 +28,7 @@ const collectFileIds = (elements: readonly AnyElement[]): string[] => {
 
 const POINTER_INTERVAL_MS = 40;
 
-export const useCollab = (boardId: string) => {
+export const useCollab = (boardId: string, initialPageId: string | null = null) => {
   const [excalidrawAPI, setExcalidrawAPI] =
     useState<ExcalidrawImperativeAPI | null>(null);
   const [board, setBoard] = useState<Board | null>(null);
@@ -127,9 +127,13 @@ export const useCollab = (boardId: string) => {
         setBoard(result.board);
         setPages(result.pages);
 
+        // An explicitly requested page wins over the one this browser last had
+        // open - a deep link is a deliberate instruction.
         const remembered = localStorage.getItem(`sketchspace:page:${boardId}`);
         const target =
-          result.pages.find((p) => p.id === remembered) ?? result.pages[0];
+          result.pages.find((p) => p.id === initialPageId) ??
+          result.pages.find((p) => p.id === remembered) ??
+          result.pages[0];
         if (target) {
           void openPage(target.id);
         }
@@ -143,7 +147,7 @@ export const useCollab = (boardId: string) => {
     return () => {
       cancelled = true;
     };
-  }, [boardId, excalidrawAPI, openPage]);
+  }, [boardId, initialPageId, excalidrawAPI, openPage]);
 
   useEffect(() => {
     if (activePageId) {

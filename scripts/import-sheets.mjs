@@ -8,24 +8,27 @@
  *   npm run import:sheets -- <path> --board <boardId>             # add to a board
  *   npm run import:sheets -- <path> --name "Barn 2.0"
  *
- * A drawing set is a board and each sheet is a tab, which is the whole point of
- * the page model. Placement import goes through syncPageWithLayout - the same
- * code the layout watcher uses - so a fresh page and a re-synced one are built
- * by one implementation.
+ * Blender's "open layout" button does this on demand via
+ * scripts/open-layout.mjs; both share server/src/layoutImport.ts.
  */
-import { existsSync, readdirSync, statSync } from "node:fs";
-import path from "node:path";
+import { existsSync } from "node:fs";
 
 import { config } from "../dist/server/config.js";
-import { createBoard, createPage, getBoard, saveSceneJSON } from "../dist/server/db.js";
-import { syncPageWithLayout } from "../dist/server/layoutSync.js";
+import { getBoard } from "../dist/server/db.js";
+import {
+  addSheetToBoard,
+  importSheetSet,
+  resolveLayouts,
+} from "../dist/server/layoutImport.js";
 
 const args = process.argv.slice(2);
 const flag = (name) => {
   const i = args.indexOf(name);
   return i === -1 ? null : args[i + 1];
 };
-const target = args.find((a) => !a.startsWith("--") && args[args.indexOf(a) - 1] !== "--board" && args[args.indexOf(a) - 1] !== "--name");
+const target = args.find(
+  (a, i) => !a.startsWith("--") && args[i - 1] !== "--board" && args[i - 1] !== "--name",
+);
 const existingBoardId = flag("--board");
 const nameOverride = flag("--name");
 
@@ -37,56 +40,14 @@ if (!target || !existsSync(target)) {
   process.exit(1);
 }
 
-/** Resolve whatever was passed into a layouts directory plus its sheet files. */
-const resolveLayouts = (input) => {
-  if (statSync(input).isFile()) {
-    return { dir: path.dirname(input), files: [input] };
-  }
-  const dir = existsSync(path.join(input, "layouts"))
-    ? path.join(input, "layouts")
-    : input;
-  const files = readdirSync(dir)
-    .filter((f) => f.toLowerCase().endsWith(".svg"))
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-    .map((f) => path.join(dir, f));
-  return { dir, files };
-};
-
-const { dir: layoutsDir, files } = resolveLayouts(path.resolve(target));
-
+const { dir: layoutsDir, files } = resolveLayouts(target);
 if (files.length === 0) {
   console.error(`\nno .svg sheets in ${layoutsDir}\n`);
   process.exit(1);
 }
 
-/**
- * Board identity comes from the IFC file that sits beside layouts/ - Bonsai
- * resolves every drawing path relative to the IFC file's directory, so that is
- * the natural unit. Prefer one whose name appears in the path when a project
- * holds several.
- */
-const deriveBoardName = () => {
-  if (nameOverride) {
-    return nameOverride;
-  }
-  const projectDir = path.dirname(layoutsDir);
-  const ifcs = existsSync(projectDir)
-    ? readdirSync(projectDir).filter((f) => f.toLowerCase().endsWith(".ifc"))
-    : [];
-  if (ifcs.length > 0) {
-    const normalised = projectDir.replace(/\\/g, "/").toLowerCase();
-    const preferred =
-      ifcs.find((f) => normalised.includes(path.basename(f, ".ifc").toLowerCase())) ??
-      ifcs.sort()[0];
-    return path.basename(preferred, ".ifc");
-  }
-  return path.basename(projectDir);
-};
-
-const sheetName = (file) => path.basename(file, path.extname(file));
-
 let board;
-let firstPage = null;
+let total = 0;
 
 if (existingBoardId) {
   board = getBoard(existingBoardId);
@@ -94,38 +55,26 @@ if (existingBoardId) {
     console.error(`\nno board ${existingBoardId}\n`);
     process.exit(1);
   }
-} else {
-  const created = createBoard(deriveBoardName());
-  board = created.board;
-  firstPage = created.page;
-}
+  console.log(`\nboard  : ${board.name} (${board.id})`);
+  console.log(`sheets : ${files.length} from ${layoutsDir}\n`);
 
-console.log(`\nboard  : ${board.name} (${board.id})`);
-console.log(`sheets : ${files.length} from ${layoutsDir}\n`);
-
-let totalPlacements = 0;
-
-for (const [i, file] of files.entries()) {
-  const name = sheetName(file);
-
-  // createBoard already made a page; reuse it for the first sheet rather than
-  // leaving an empty "Page 1" behind.
-  let page;
-  if (firstPage && i === 0) {
-    page = firstPage;
-    // Rename the default page to the sheet it now holds.
-    const { renamePage } = await import("../dist/server/db.js");
-    renamePage(page.id, name);
-  } else {
-    page = createPage(board.id, name, null);
+  for (const file of files) {
+    const page = addSheetToBoard(board.id, file);
+    console.log(`  ${page.name}`);
+    total++;
   }
-
-  const summary = syncPageWithLayout([], board.id, file);
-  saveSceneJSON(page.id, JSON.stringify(summary.changed));
-  totalPlacements += summary.added;
-
-  console.log(`  ${name.padEnd(46)} ${String(summary.added).padStart(3)} placement(s)`);
+} else {
+  const result = importSheetSet(layoutsDir, files, nameOverride ?? undefined);
+  board = result.board;
+  console.log(`\nboard  : ${board.name} (${board.id})`);
+  console.log(`sheets : ${files.length} from ${layoutsDir}\n`);
+  for (const s of result.sheets) {
+    console.log(
+      `  ${s.page.name.padEnd(46)} ${String(s.placements).padStart(3)} placement(s)`,
+    );
+    total += s.placements;
+  }
 }
 
-console.log(`\nimported ${files.length} sheet(s), ${totalPlacements} placement(s)`);
+console.log(`\nimported ${files.length} sheet(s), ${total} placement(s)`);
 console.log(`open     http://localhost:${config.port}/#/board/${board.id}\n`);

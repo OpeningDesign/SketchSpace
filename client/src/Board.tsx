@@ -7,11 +7,13 @@ import { useCollab } from "./useCollab";
 
 type Props = {
   boardId: string;
+  /** Deep-linked sheet, e.g. from Bonsai's "open layout" button. */
+  initialPageId?: string | null;
   onExit: () => void;
 };
 
-export const Board = ({ boardId, onExit }: Props) => {
-  const collab = useCollab(boardId);
+export const Board = ({ boardId, initialPageId, onExit }: Props) => {
+  const collab = useCollab(boardId, initialPageId ?? null);
 
   // Let other people see a name rather than "Guest a1b2".
   useEffect(() => {

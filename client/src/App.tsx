@@ -6,15 +6,22 @@ import { BoardList } from "./BoardList";
 import { Login } from "./Login";
 import { disconnectSocket } from "./socket";
 
-/** Hash routing: #/board/<id>, empty means the board list. */
-const readRoute = (): string | null => {
-  const match = /^#\/board\/([A-Za-z0-9_-]+)$/.exec(window.location.hash);
-  return match?.[1] ?? null;
+/**
+ * Hash routing: `#/board/<id>` or `#/board/<id>/<pageId>`, empty means the board
+ * list. The optional page lets something outside the app deep-link to a specific
+ * sheet - `scripts/open-layout.mjs` uses it so Bonsai's "open layout" button can
+ * land on the right tab.
+ */
+const readRoute = (): { boardId: string; pageId: string | null } | null => {
+  const match = /^#\/board\/([A-Za-z0-9_-]+)(?:\/([A-Za-z0-9_-]+))?$/.exec(
+    window.location.hash,
+  );
+  return match ? { boardId: match[1]!, pageId: match[2] ?? null } : null;
 };
 
 export const App = () => {
   const [authed, setAuthed] = useState<boolean | null>(null);
-  const [boardId, setBoardId] = useState<string | null>(readRoute);
+  const [route, setRoute] = useState<ReturnType<typeof readRoute>>(readRoute);
 
   useEffect(() => {
     api
@@ -24,19 +31,19 @@ export const App = () => {
   }, []);
 
   useEffect(() => {
-    const onHashChange = () => setBoardId(readRoute());
+    const onHashChange = () => setRoute(readRoute());
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
   const openBoard = (id: string) => {
     window.location.hash = `#/board/${id}`;
-    setBoardId(id);
+    setRoute({ boardId: id, pageId: null });
   };
 
   const exitBoard = () => {
     window.location.hash = "";
-    setBoardId(null);
+    setRoute(null);
   };
 
   const logout = async () => {
@@ -54,8 +61,15 @@ export const App = () => {
     return <Login onAuthed={() => setAuthed(true)} />;
   }
 
-  if (boardId) {
-    return <Board boardId={boardId} onExit={exitBoard} />;
+  if (route) {
+    return (
+      <Board
+        key={route.boardId}
+        boardId={route.boardId}
+        initialPageId={route.pageId}
+        onExit={exitBoard}
+      />
+    );
   }
 
   return <BoardList onOpen={openBoard} onLogout={logout} />;

@@ -240,11 +240,29 @@ round-tripping.
 
 ## Bonsai / IFC integration
 
-SketchSpace imports a [Bonsai](https://bonsaibim.org/) sheet layout as a page and
-then stays in step with it **in both directions, automatically**.
-
 **One board per IFC file, one tab per sheet.** A drawing set is a board; each
-sheet is a page.
+sheet is a page. Once a project is imported the two stay in step automatically,
+in both directions.
+
+### From Blender
+
+Set Bonsai's **Layout SVG Command** preference to (one line, JSON):
+
+```json
+[["node", "--env-file-if-exists=D:/path/to/SketchSpace/.env", "D:/path/to/SketchSpace/scripts/open-layout.mjs", "path"]]
+```
+
+`bpy.ops.bim.open_layout()` then opens the sheet in SketchSpace instead of
+Inkscape. Bonsai runs this through `subprocess.Popen` with no shell, so the
+executable must be resolvable by `shutil.which`, every argument is a separate
+list entry, and the literal token `"path"` is replaced with the layout's path.
+
+The script handles three cases: the sheet is already a tab (opens it), the board
+exists but this sheet is new (adds a tab), or neither (imports the whole set and
+creates the board). First use on a project imports every sheet, which can take a
+minute; it happens once.
+
+### Or from the command line
 
 ```bash
 npm run import:sheets -- "<project>/Models/Bonsai"           # the whole set
@@ -252,32 +270,45 @@ npm run import:sheets -- "<...>/layouts/A001 - SITE PLAN.svg"  # a single sheet
 npm run import:sheets -- <path> --board <boardId>            # add tabs to a board
 ```
 
-The board takes its name from the `.ifc` file sitting beside `layouts/`, since
-Bonsai resolves every drawing path relative to that file's directory.
+The board takes its name from the `.ifc` file beside `layouts/`, since Bonsai
+resolves every drawing path relative to that file's directory.
 
-After that there is nothing to press:
+### What stays in sync
 
 - **Move a drawing here** and the layout SVG is rewritten about two seconds after
-  it settles. A small pill bottom-right reads `layout saved`. Run
+  it settles. A pill bottom-right reads `layout saved`. Run
   `bpy.ops.bim.create_sheets()` in Blender to rebuild the sheet.
-- **Add, remove, or regenerate a drawing in Bonsai** and it appears here within
-  a couple of seconds. Bonsai writes the layout on `add_drawing`,
-  `remove_drawing`, `add_document` and the two `update_*_sizes` reflows;
-  `create_sheets` itself only writes `sheets/`, never the layout.
+- **Add a sheet in Bonsai** and a tab appears.
+- **Rename a sheet** and the tab follows it, rather than duplicating.
+- **Delete a sheet** and the tab goes — unless you have drawn on it.
+- **Add, remove or regenerate a drawing** and the sheet updates in place,
+  including Bonsai's reflow of its neighbours.
 
-Redlines are never written to the layout - they carry no `customData.bonsai`, so
-nothing in the sync path matches them.
+Redlines are never written to the layout; they carry no `customData.bonsai`.
 
-### Why the layout, not the sheet
+### Sheet identity is content, not filename
 
-Bonsai keeps `layouts/*.svg` (~3 KB of structure and links) alongside
-`sheets/*.svg` (the build output, often megabytes of base64 PNG). The layout is
-the source: drawings regenerate from the model without disturbing the
-arrangement, and a change is a readable diff rather than a binary blob.
+A layout SVG records no identity of its own — its root `<svg>` carries only
+`id="root"` — and Bonsai renames the file when a sheet is renamed. Matching on
+path alone therefore reads a rename as a brand new sheet: the old tab is orphaned
+and a duplicate appears.
 
-Each `<g data-type="drawing">` carries `data-drawing`, an **IFC GlobalId**, which
-travels into `customData.bonsai.globalId` - so a redline can eventually anchor to
-the model rather than to pixels.
+A sheet is instead identified by the **set of IFC GlobalIds** of the drawings it
+places (`data-drawing`), which survives renaming. That is what lets a rename
+rebind the existing tab.
+
+Tab names still come from filenames, so a sheet called `A01 - PLANS, SECTIONS`
+appears as `A01 - PLANS SECTIONS` — Bonsai strips commas when writing the file.
+
+### When a tab is removed automatically
+
+Only when its layout file is gone **and** nothing you drew is on it. A tab
+carrying redlines is kept and reported instead, because redlines exist nowhere
+else. Deletion is a soft delete, so a wrong call is recoverable from the database.
+
+If a layouts directory suddenly contains no layouts at all, nothing is touched —
+a disconnected drive or a sync hiccup looks identical to a mass deletion and is
+far more likely.
 
 ### Details that are load-bearing
 
@@ -290,11 +321,13 @@ the model rather than to pixels.
   reformat the file and destroy the small diff that is the point of layouts.
 - **Writes refresh the stored baseline.** Our own writes are echo-suppressed by
   content hash so the watcher ignores them, which means nothing else would
-  refresh `groupTx`; without it the same delta looks pending forever and every
-  change rewrites the whole sheet.
+  refresh `groupTx`; without it every change rewrites the whole sheet.
 - **Nested references are inlined on import.** A drawing may reference a raster
   underlay relatively, and once the SVG is base64'd into a `data:` URL there is no
-  base to resolve it against. Bonsai's `sioserver.py` inlines for the same reason.
+  base to resolve it against.
+- **SVG attributes are read by local name.** Inkscape rewrites namespace prefixes
+  inconsistently; matching `xlink:href` literally made a sheet that binds the
+  namespace as `ns3` parse to zero placements, silently.
 
 Sibling images of one layout group (foreground + view-title) are bound into an
 Excalidraw group so they move together, and the titleblock imports locked,

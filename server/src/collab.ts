@@ -27,7 +27,7 @@ import type { Server, Socket } from "socket.io";
  * single packet of page 7's traffic, but still shows up in the presence list
  * and still sees pages being added and renamed.
  */
-const boardRoom = (boardId: string) => `board:${boardId}`;
+export const boardRoom = (boardId: string) => `board:${boardId}`;
 export const pageRoom = (pageId: string) => `page:${pageId}`;
 
 const COLORS = [

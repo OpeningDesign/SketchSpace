@@ -21,7 +21,7 @@ import {
   readAsset,
   writeAsset,
 } from "./assets.js";
-import { pageRoom, registerCollab } from "./collab.js";
+import { boardRoom, pageRoom, registerCollab } from "./collab.js";
 import { config } from "./config.js";
 import {
   createBoard,
@@ -251,9 +251,19 @@ registerCollab(io);
 
 // Pull in changes Bonsai makes to imported layouts - drawings added or removed,
 // and the reflow that follows a regenerated drawing changing size.
-const stopLayoutWatcher = startLayoutWatcher((pageId, elements) => {
-  io.to(pageRoom(pageId)).emit("scene:patch", { pageId, elements });
-});
+const stopLayoutWatcher = startLayoutWatcher(
+  (pageId, elements) => {
+    io.to(pageRoom(pageId)).emit("scene:patch", { pageId, elements });
+  },
+  // Tabs added, renamed or removed in Bonsai have to reach open tab strips too,
+  // not just the scene.
+  (boardId) => {
+    io.to(boardRoom(boardId)).emit("pages:update", {
+      boardId,
+      pages: listPages(boardId),
+    });
+  },
+);
 
 httpServer.on("error", (error: NodeJS.ErrnoException) => {
   if (error.code === "EADDRINUSE") {

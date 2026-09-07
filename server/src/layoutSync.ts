@@ -219,3 +219,35 @@ export const syncPageWithLayout = (
 
   return { added, updated, removed, changed };
 };
+
+
+/**
+ * Repoint a page's placements at a renamed layout file.
+ *
+ * Bonsai renames the layout when a sheet is renamed, and a layout carries no
+ * identity of its own - so matching on path alone sees a brand new sheet,
+ * orphaning the old tab and duplicating it. Callers identify the rename by the
+ * set of drawing GlobalIds; this rewrites the stored path so the page follows.
+ */
+export const rebindLayoutPath = (
+  current: readonly SyncElement[],
+  oldLayoutPath: string,
+  newLayoutPath: string,
+): SyncElement[] => {
+  const changed: SyncElement[] = [];
+  for (const el of current) {
+    const b = (el.customData as { bonsai?: Record<string, unknown> } | undefined)
+      ?.bonsai;
+    if (!b || b.layout !== oldLayoutPath) {
+      continue;
+    }
+    changed.push({
+      ...el,
+      customData: { bonsai: { ...b, layout: newLayoutPath } },
+      version: el.version + 1,
+      versionNonce: Math.floor(Math.random() * 2 ** 31),
+      updated: Date.now(),
+    } as unknown as SyncElement);
+  }
+  return changed;
+};

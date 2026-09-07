@@ -49,6 +49,19 @@ too, which is why one-way sync was never going to hold.
 re-arrangement — the right thing to anchor to. It is already written into every
 placement; nothing has to be invented.
 
+**A sheet has no identity of its own.** A layout SVG's root carries only
+`id="root"`, and Bonsai renames the file when a sheet is renamed. Matching on
+path therefore reads a rename as a new sheet: the old tab is orphaned and a
+duplicate appears, which is exactly what happened in the field. The stable
+identity is the *set* of drawing GlobalIds the layout places - that survives
+renaming. Filenames also differ from Bonsai's display names, since Bonsai strips
+commas when writing them.
+
+**Watch the directory, not just the files.** A watcher bound to a path cannot see
+a sibling appear or that path be renamed away, so new sheets never showed up and
+renames duplicated. Reconciling the directory on adoption and at startup also
+makes a board that drifted while the server was down heal itself.
+
 **Layouts can reference other repositories.** `A000` links into
 `OD_Submodules/references/…` via a git submodule, so a board's assets may span
 repos.
