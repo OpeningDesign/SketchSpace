@@ -305,6 +305,14 @@ resolves every drawing path relative to that file's directory.
 - **Delete a sheet** and the tab goes — unless you have drawn on it.
 - **Add, remove or regenerate a drawing** and the sheet updates in place,
   including Bonsai's reflow of its neighbours.
+- **Edit a linked file** — a titleblock, a view-title asset, a drawing redrawn
+  without changing size — and every sheet placing it refreshes.
+
+The directories watched for that last one are **derived from the layouts
+themselves**, not hardcoded and not read from the IFC: each `<image href>` is
+resolved against its layout's directory and the containing directory is watched.
+So `schedules/` is watched only on projects that place one, and a reference
+living in another repo via a git submodule is followed just the same.
 
 Redlines are never written to the layout; they carry no `customData.bonsai`.
 

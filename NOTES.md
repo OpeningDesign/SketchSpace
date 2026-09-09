@@ -62,6 +62,13 @@ a sibling appear or that path be renamed away, so new sheets never showed up and
 renames duplicated. Reconciling the directory on adoption and at startup also
 makes a board that drifted while the server was down heal itself.
 
+**`fs.watch` is not recursive, and the thing that changed may not be the thing
+you watch.** A redrawn titleblock lives in `layouts/titleblocks/`, which a watch
+on `layouts/` cannot see; and even once seen, the layout's own content hash is
+unchanged, so the normal sync path short-circuits. Two separate reasons for the
+same silence. Watched directories are derived from each layout's resolved hrefs,
+so they follow whatever Bonsai actually links to rather than an assumed layout.
+
 **Layouts can reference other repositories.** `A000` links into
 `OD_Submodules/references/…` via a git submodule, so a board's assets may span
 repos.

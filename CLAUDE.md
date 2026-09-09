@@ -100,6 +100,11 @@ explains the model. What will bite:
   new sheet and duplicates the tab. See `drawingGuidSet` / `findRenamedPage`.
 - **Watch the directory, not only the files.** Additions and renames never reach
   a watcher bound to a path that no longer exists.
+- **`fs.watch` is not recursive.** A watch on `layouts/` cannot see
+  `layouts/titleblocks/`, so linked assets need their own watchers - derived from
+  each layout's resolved hrefs, never hardcoded. And a linked-file change must
+  bypass the layout content-hash guard, since the layout itself did not change
+  (`resyncLayoutAssets`).
 - **`boundPages()` reads the database, which lags the store.** Resolve a page's
   live layout path through `getElements` before comparing, or a rebind looks
   un-done and is applied again on every pass.
@@ -123,7 +128,7 @@ and overwrites on flush - the edit appears to work, then vanishes. Use
 `scripts/lib/require-server-stopped.mjs`, as the export and backfill scripts do.
 Creating *new* boards and pages is safe, which is why import does not need it.
 
-## Verifying## Verifying
+## Verifying
 
 `npm run smoke` drives three concurrent clients through auth, scene deltas,
 conflict resolution, page isolation, presence, and persistence. All 18 checks

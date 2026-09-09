@@ -23,6 +23,7 @@ import {
   resolveLayouts,
   sheetName,
 } from "./layoutImport.js";
+import { parseLayout } from "./bonsaiLayout.js";
 import { rebindLayoutPath, syncPageWithLayout } from "./layoutSync.js";
 import { applyUpdate, getElements } from "./store.js";
 
@@ -35,6 +36,17 @@ const RESCAN_MS = 30_000;
 
 const watchers = new Map<string, FSWatcher>();
 const dirWatchers = new Map<string, FSWatcher>();
+/**
+ * Directories holding the files a layout *links to* - drawings, titleblocks,
+ * view-title assets - mapped to the layouts that reference them.
+ *
+ * Editing one of those does not touch the layout, and they live in
+ * subdirectories (`layouts/titleblocks`) or siblings (`drawings`) that a
+ * non-recursive watch on the layouts directory cannot see. Without this, a
+ * redrawn titleblock simply never appears.
+ */
+const assetWatchers = new Map<string, FSWatcher>();
+const assetDirLayouts = new Map<string, Set<string>>();
 const timers = new Map<string, NodeJS.Timeout>();
 
 /**
@@ -130,6 +142,47 @@ const syncLayout = (layoutPath: string, broadcast: Broadcast): void => {
     } catch (error) {
       console.error(`[sketchspace] layout sync failed for ${pageId}:`, error);
     }
+  }
+};
+
+/**
+ * Re-sync a layout because one of its *linked files* changed.
+ *
+ * `syncLayout` short-circuits when the layout's own content hash is unchanged,
+ * which it is here - the titleblock moved, not the sheet. `syncPageWithLayout`
+ * re-hashes every linked file, so simply running it picks the new bytes up.
+ */
+const resyncLayoutAssets = (layoutPath: string, broadcast: Broadcast): void => {
+  for (const { pageId, boardId } of scanLayouts().get(layoutPath) ?? []) {
+    try {
+      const summary = syncPageWithLayout(getElements(pageId), boardId, layoutPath);
+      if (summary.changed.length === 0) {
+        continue;
+      }
+      const accepted = applyUpdate(pageId, summary.changed);
+      if (accepted.length > 0) {
+        broadcast(pageId, accepted);
+      }
+      console.log(
+        `[sketchspace] linked asset changed for ${path.basename(layoutPath)}: ` +
+          `~${summary.updated} placement(s) refreshed`,
+      );
+    } catch (error) {
+      console.error(`[sketchspace] asset resync failed for ${pageId}:`, error);
+    }
+  }
+};
+
+/** Directories containing the files this layout links to. */
+const assetDirsOf = (layoutPath: string): string[] => {
+  try {
+    return [
+      ...new Set(
+        parseLayout(layoutPath).placements.map((p) => path.dirname(p.href)),
+      ),
+    ];
+  } catch {
+    return [];
   }
 };
 
@@ -331,6 +384,38 @@ const refreshWatches = (
     }
   }
 
+  // Watch the directories holding each layout's linked files.
+  for (const layoutPath of wanted.keys()) {
+    for (const dir of assetDirsOf(layoutPath)) {
+      const set = assetDirLayouts.get(dir) ?? new Set<string>();
+      set.add(layoutPath);
+      assetDirLayouts.set(dir, set);
+
+      if (assetWatchers.has(dir) || dirWatchers.has(dir) || !existsSync(dir)) {
+        continue;
+      }
+      try {
+        let timer: NodeJS.Timeout | undefined;
+        const watcher = watch(dir, () => {
+          clearTimeout(timer);
+          timer = setTimeout(() => {
+            for (const lp of assetDirLayouts.get(dir) ?? []) {
+              resyncLayoutAssets(lp, broadcast);
+            }
+          }, DEBOUNCE_MS);
+        });
+        watcher.on("error", () => {
+          watcher.close();
+          assetWatchers.delete(dir);
+        });
+        assetWatchers.set(dir, watcher);
+        console.log(`[sketchspace] watching assets dir ${dir}`);
+      } catch (error) {
+        console.error(`[sketchspace] cannot watch ${dir}:`, error);
+      }
+    }
+  }
+
   for (const layoutPath of wanted.keys()) {
     if (watchers.has(layoutPath) || !existsSync(layoutPath)) {
       continue;
@@ -383,7 +468,12 @@ export const startLayoutWatcher = (
     for (const w of dirWatchers.values()) {
       w.close();
     }
+    for (const w of assetWatchers.values()) {
+      w.close();
+    }
     watchers.clear();
     dirWatchers.clear();
+    assetWatchers.clear();
+    assetDirLayouts.clear();
   };
 };
