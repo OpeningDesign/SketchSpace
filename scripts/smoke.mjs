@@ -7,6 +7,10 @@
  *   SKETCHSPACE_PASSWORD=dev PORT=3111 SKETCHSPACE_DATA_DIR=./tmp-smoke \
  *     node dist/server/index.js &
  *   node scripts/smoke.mjs http://localhost:3111 dev
+ *
+ * Point it at a throwaway data directory and port - it creates boards. It waits
+ * for the server to answer before starting, so backgrounding the server on the
+ * line above is safe even though startup takes seconds.
  */
 import { io } from "socket.io-client";
 
@@ -79,8 +83,43 @@ const element = (id, version, extra = {}) => ({
   ...extra,
 });
 
+/**
+ * Wait for the server to answer before asserting anything.
+ *
+ * Startup is not instant: the server adopts every board it knows and registers
+ * a watcher per layout and per asset directory before it listens, which on a
+ * machine with real projects takes seconds. Backgrounding the server and
+ * running straight into the checks - as the obvious copy-paste does - fails on
+ * the first `fetch` with "fetch failed", which reads like the server never came
+ * up rather than like it is still starting.
+ */
+const waitForServer = async (timeoutMs = 60_000) => {
+  const deadline = Date.now() + timeoutMs;
+  let lastError = "";
+  while (Date.now() < deadline) {
+    try {
+      await fetch(`${BASE}/api/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: "" }),
+      });
+      return;
+    } catch (error) {
+      lastError = error?.cause?.code ?? error?.message ?? String(error);
+      await sleep(400);
+    }
+  }
+  console.error(
+    `\n${BASE} never answered (${lastError}).\n` +
+      `  Is the server running on that port? See README, "Verifying collaboration".\n`,
+  );
+  process.exit(1);
+};
+
 const main = async () => {
   console.log(`\nSketchSpace smoke test against ${BASE}\n`);
+
+  await waitForServer();
 
   /* ---------------------------------- auth -------------------------------- */
 

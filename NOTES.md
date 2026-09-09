@@ -246,6 +246,15 @@ That removes it from Dropbox's cloud copy and other devices, so push first. A
 retry usually clears a one-off failure; run `git fsck` afterwards if the failure
 touched `.git`.
 
+**"fetch failed" against a just-started server means it is still starting.** The
+server adopts every board and registers a watcher per layout and per asset
+directory *before* it listens, which on a machine with real projects takes
+seconds. Backgrounding it and running straight into a script fails on the first
+request, and the message reads like nothing is listening at all - which sent me
+looking at IPv6 and `localhost` resolution before I checked the obvious. Both
+were fine. `scripts/smoke.mjs` now waits for the port itself; anything else
+scripted against a fresh server should too.
+
 **`npm install` here takes minutes**, between Dropbox and native builds. Background
 it.
 

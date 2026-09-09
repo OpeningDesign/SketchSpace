@@ -94,6 +94,12 @@ npm run smoke -- http://localhost:3111 dev
 
 All 18 checks should report `ok`.
 
+The server adopts every board and registers its watchers *before* it listens,
+so on a machine with real projects that takes seconds rather than milliseconds.
+The smoke test waits for it, so the two commands above are safe to paste
+together - but if you script anything else against a freshly started server,
+wait for the port rather than assuming it is up.
+
 ## Sharing a view
 
 The address bar always points at what is on screen:
