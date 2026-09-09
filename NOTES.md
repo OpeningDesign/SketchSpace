@@ -73,6 +73,34 @@ so they follow whatever Bonsai actually links to rather than an assumed layout.
 `OD_Submodules/references/…` via a git submodule, so a board's assets may span
 repos.
 
+### Launching from Blender
+
+**Bonsai's `layout_svg_command` is `Popen` with no shell.** Every argument is its
+own JSON list entry, the executable must be resolvable by `shutil.which`, and the
+literal token `path` is substituted with the layout's file path. Anything relative
+resolves against Blender's working directory, not ours, so the whole command is
+absolute. A shell-style string here fails silently - the button simply does
+nothing.
+
+**Do the database work before starting the server, not after.** Creating a board
+while nothing is running cannot race the store, and the server's startup
+reconcile then meets a finished board rather than one being assembled underneath
+it. Ordering, again, rather than locking.
+
+**A detached child needs somewhere to write.** `stdio: "ignore"` on a server
+started from Blender means a failure to boot leaves nothing at all to look at -
+no window, no console, no exit code anyone sees. Output goes to a log file, and
+the "port never answered" message names it. Detached and `unref`'d because the
+server must outlive both this script and Blender.
+
+**"Is the server up?" gets exactly one implementation.** `server-control.mjs`
+answers it for the autostart in `open-layout.mjs` and for the refusal in
+`require-server-stopped.mjs` - the same question wanted both ways round. Two
+copies of it is precisely the drift that produced the write-back bug above. A
+related trap: the process runs as `node dist/server/index.js`, so matching
+command lines for "sketchspace" finds nothing and reports "not running" while it
+is plainly serving. Ask the port.
+
 ### Sync
 
 **A write must refresh its own baseline.** After writing `groupTx` to the layout,
@@ -142,11 +170,51 @@ to `zoom` lives on `SketchSpace` and must not reach
 is that existing behaviour is unchanged. `git log master..SketchSpace` is the
 check: everything it lists is ours and deliberate.
 
+### Backing up, and verifying
+
+**Order beats simultaneity.** The database snapshot and the asset mirror do not
+need to happen at the same instant - they need to happen in the right sequence.
+Snapshot first, mirror after: everything the snapshot references was written
+before it was taken, so a later mirror necessarily contains all of it, and the
+few extra assets copied in between are harmless. The reverse order loses an asset
+written in the gap, and you find out months later when a restore shows a broken
+image.
+
+**`VACUUM INTO`, not SQLite's backup API.** The backup API carries the source's
+WAL mode across, so the "single file" snapshot grows its own `-shm`/`-wal` the
+moment anything opens it, and pruning an old snapshot orphans them. `VACUUM INTO`
+writes a plain `journal_mode=delete` database, and compacts it on the way.
+
+**An untested backup is a hope.** Every run verifies with `integrity_check` and a
+row count, and the restore procedure in the README was performed, not imagined -
+a server booted from a snapshot, boards and tabs recovered, assets served.
+
+**`cmd | tail && echo OK` reports `tail`'s exit code, not the command's.** It
+prints OK over a failed build. Redirect to a file and test `$?` instead. This
+nearly let a broken build through today.
+
+**A build `EPERM` on `dist/` is not always Dropbox.** The running server serves
+static files from `dist/client`, so Vite's `emptyOutDir` cannot delete it. Same
+error text as the sync-lock failures, entirely different cause - stop the server
+before building.
+
 ### Environment
 
-**Keep SQLite out of Dropbox.** WAL mode holds `.db`, `.db-shm` and `.db-wal` open
-together; a sync client locks them and syncs them out of step. Symptom: "Device or
-resource busy" on files nothing appears to have open.
+**Keep the whole checkout out of Dropbox, not just the database.** The first
+symptom was SQLite - WAL holds `.db`, `.db-shm` and `.db-wal` open together, and a
+sync client locks them and syncs them out of step, giving "Device or resource
+busy" on files nothing appears to have open. But the same cause produced
+`unable to write file .git/objects/…: Invalid argument` mid-commit, a corrupted
+commit-graph chain, and `EPERM` on `dist/client/assets` during a build. Marking a
+folder with Dropbox's ignore attribute keeps it on disk while stopping the sync:
+
+```powershell
+Set-Content -Path 'D:\Dropbox\GitHub\SketchSpace' -Stream com.dropbox.ignored -Value 1
+```
+
+That removes it from Dropbox's cloud copy and other devices, so push first. A
+retry usually clears a one-off failure; run `git fsck` afterwards if the failure
+touched `.git`.
 
 **`npm install` here takes minutes**, between Dropbox and native builds. Background
 it.
@@ -191,18 +259,20 @@ not bookkeeping. Forgejo at hub.openingdesign.com is the host.
 
 ### Asset weight
 
-One site plan is 19.7 MB because its raster underlay must be inlined. Two levers,
-neither pulled: gzip the asset endpoint (`node:zlib`, no new dependency — SVG
-linework compresses ~80%, base64-of-PNG barely at all), and downsample underlays
-at import, which is almost certainly the bigger win.
+Assets are now served as raw bytes over HTTP and cached immutably, which took a
+sheet's metadata response from ~26 MB of base64 JSON to 1.7 KB. What remains is
+the bytes themselves: one site plan is still 19.7 MB because its raster underlay
+must be inlined into the SVG.
+
+Two levers, neither pulled: gzip the asset endpoint (`node:zlib`, no new
+dependency — SVG linework compresses ~80%, base64-of-PNG barely at all), and
+downsample underlays at import, which is almost certainly the bigger win.
 
 ### Smaller things
 
 - **The watcher fires two sync passes per external edit.** Converges correctly,
   but does twice the work. Likely Windows `fs.watch` plus Dropbox touching the
   file.
-- **Watch the layouts *directory*,** so a sheet added in Bonsai becomes a new tab
-  rather than requiring a re-import.
 - **Undo history is not partitioned per page.** Switching pages uses
   `CaptureUpdateAction.NEVER` so the switch itself is not an undo step, but the
   histories are shared.
@@ -215,3 +285,11 @@ at import, which is almost certainly the bigger win.
 - **Cross-page element links** — the other half of what
   [#6460](https://github.com/excalidraw/excalidraw/issues/6460) asked for, and
   natural for a drawing set where a section marker points at another sheet.
+- **Backups go to one destination on one machine.** Nightly snapshots and the
+  asset mirror both land in Dropbox, which covers the failure modes that actually
+  happen - a bad migration, a deleted board, a dead disk. It does not cover the
+  account itself. `BACKUP_DEST` is just a path, so a second scheduled run to
+  another target is the whole of the fix; nobody has set one up.
+- **Archiving finished projects.** Old boards keep their assets on disk and in
+  every nightly mirror forever. Exporting a board to a self-contained file and
+  removing it would keep the data directory proportional to live work.
