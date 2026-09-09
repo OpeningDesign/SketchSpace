@@ -410,6 +410,8 @@ your own repositories.
 npm run backup                                    # to the default location
 npm run backup -- --out D:/Dropbox/SS-Backups     # anywhere you like
 npm run backup -- --timestamped --keep 14         # if you have no versioning
+npm run backup -- --assets                        # mirror the assets too
+npm run backup -- --assets E:/SS-Assets           # ...or somewhere else
 ```
 
 `SKETCHSPACE_BACKUP_DIR` works too.
@@ -430,8 +432,21 @@ badly against dedupe; your backup tool does it better), and **no retention**
 unless asked (restic `forget`, borg `prune` and Dropbox versions all do it
 properly).
 
-`files/` is not copied. It is content-addressed and written once, never modified
-in place, so it is safe to mirror live with any tool and needs no help from us.
+`files/` is skipped unless `--assets` is given. It is content-addressed and
+written once, so it is safe to mirror live with any tool — but doing it here gets
+the **ordering** right, which matters more than it looks.
+
+The snapshot is taken first and the assets mirrored after. Everything the
+snapshot references was written before it was taken, so a mirror run afterwards
+necessarily contains all of it; a few extra assets copied in between are
+harmless. The reverse order is not safe — an asset written between the mirror and
+the snapshot would be referenced but missing, and the restore shows a broken
+image.
+
+The copy never deletes. A filename is a hash of its contents, so a name that
+already exists is already correct and is skipped, and an asset that an older
+snapshot still references is never removed just because the current database has
+stopped using it. First run copies everything; later runs copy only what is new.
 
 ### Restoring
 

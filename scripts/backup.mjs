@@ -31,12 +31,32 @@
  *   - **No retention** unless asked. restic has `forget`, borg has `prune`,
  *     Dropbox has version history - duplicating that would only get in the way.
  *
- * Assets (`<dataDir>/files`) are not copied here. They are content-addressed and
- * written once, never modified in place, so they are safe to copy while running
- * and any mirror tool handles them incrementally without help from us.
+ * Assets (`<dataDir>/files`) are skipped unless `--assets` is given. They are
+ * content-addressed and written once, never modified in place, so any mirror
+ * tool handles them incrementally - but mirroring here gets the *ordering*
+ * right, which matters more than it looks.
+ *
+ * The snapshot is taken **first**, the assets mirrored after. Everything the
+ * snapshot references was written before it was taken, so a mirror run
+ * afterwards necessarily contains all of it; a few extra assets written in
+ * between are harmless. The reverse order is not safe - an asset written between
+ * the mirror and the snapshot would be referenced but missing, and the restore
+ * shows a broken image.
+ *
+ * The copy never deletes. An id is a hash of its bytes, so a name that exists is
+ * already correct and is skipped, and an asset an old snapshot still references
+ * is never removed just because the current database stopped using it.
  */
 import Database from "better-sqlite3";
-import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+} from "node:fs";
 import path from "node:path";
 
 import { config } from "../dist/server/config.js";
@@ -160,19 +180,70 @@ if (keep > 0 && timestamped) {
   }
 }
 
-// The assets are the other half of a restore; report them so their absence from
-// this snapshot is never a surprise.
+/*
+ * Assets: the other half of a restore. Mirrored only when asked, and always
+ * after the snapshot - see the note at the top for why that order is the safe
+ * one.
+ */
 const filesDir = path.join(dataDir, "files");
+const assetsOut = flag("--assets") ?? (has("--assets") ? path.join(outDir, "files") : null);
+
 if (existsSync(filesDir)) {
   const entries = readdirSync(filesDir);
   const total = entries.reduce(
     (sum, f) => sum + statSync(path.join(filesDir, f)).size,
     0,
   );
-  console.log(
-    `\nassets : ${entries.length} file(s), ${mb(total)} in ${filesDir}\n` +
-      `         Not copied here - content-addressed and write-once, so they are\n` +
-      `         safe to mirror live with any tool. Without them a restored board\n` +
-      `         renders broken images.\n`,
-  );
+
+  if (!assetsOut) {
+    console.log(
+      [
+        "",
+        `assets : ${entries.length} file(s), ${mb(total)} in ${filesDir}`,
+        "         Not copied - pass --assets to mirror them, or point any mirror",
+        "         tool at that directory. Without them a restored board renders",
+        "         broken images.",
+        "",
+      ].join("\n"),
+    );
+  } else {
+    const destDir = path.resolve(assetsOut);
+    mkdirSync(destDir, { recursive: true });
+
+    // A name is a content hash, so anything already present is already correct.
+    const have = new Set(readdirSync(destDir));
+    let copied = 0;
+    let bytes = 0;
+
+    for (const f of entries) {
+      if (have.has(f)) {
+        continue;
+      }
+      const from = path.join(filesDir, f);
+      const to = path.join(destDir, f);
+      const partial = `${to}.partial`;
+      try {
+        copyFileSync(from, partial);
+        renameSync(partial, to);
+        copied++;
+        bytes += statSync(to).size;
+      } catch (error) {
+        if (existsSync(partial)) {
+          rmSync(partial, { force: true });
+        }
+        console.error(
+          `
+asset mirror failed on ${f}: ${error.message}
+`,
+        );
+        process.exit(1);
+      }
+    }
+
+    console.log(
+      `
+assets : ${copied} new of ${entries.length} ` +
+        `(${mb(bytes)} copied, ${mb(total)} total) -> ${destDir}`,
+    );
+  }
 }
