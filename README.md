@@ -284,6 +284,18 @@ exists but this sheet is new (adds a tab), or neither (imports the whole set and
 creates the board). First use on a project imports every sheet, which can take a
 minute; it happens once.
 
+**It also starts SketchSpace if it is not running**, detached, so the button
+works from a cold machine - Blender is often the first thing opened in the
+morning. That first press takes around fifteen seconds while the server boots;
+later ones are instant. The server's output goes to `<dataDir>/server.log`.
+
+Pass `--no-start`, or set `SKETCHSPACE_NO_AUTOSTART=1`, to have it refuse rather
+than start anything.
+
+Database work happens first and the server is started after: creating a board
+while nothing is running is entirely safe, and the server's startup reconcile
+then sees a finished board rather than one being built underneath it.
+
 ### Or from the command line
 
 ```bash

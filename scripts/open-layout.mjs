@@ -30,12 +30,28 @@
  *
  * Creating boards and pages is safe against a running server: everything written
  * here is new, so nothing the server has cached in memory can overwrite it.
+ *
+ * If SketchSpace is not running it is started here, detached, so the button
+ * works from a cold machine - Blender is often the first thing opened in the
+ * morning. Pass --no-start (or set SKETCHSPACE_NO_AUTOSTART=1) to keep that from
+ * happening.
+ *
+ * The database work happens first and the server is started after: creating a
+ * board while nothing is running is completely safe, and the server's startup
+ * reconcile then sees the finished board rather than one being built underneath
+ * it.
  */
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { config } from "../dist/server/config.js";
+import {
+  isPortListening,
+  startServerDetached,
+  waitForServer,
+} from "./lib/server-control.mjs";
 import {
   addSheetToBoard,
   findBoardForLayoutsDir,
@@ -94,6 +110,48 @@ if (!target) {
       pageName: match.page.name,
     };
   }
+}
+
+/* ------------------------- make sure it is running ------------------------ */
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const autostart =
+  !process.argv.includes("--no-start") &&
+  process.env.SKETCHSPACE_NO_AUTOSTART !== "1";
+
+if (!(await isPortListening(config.port))) {
+  if (!autostart) {
+    console.error(
+      [
+        "",
+        `SketchSpace is not running on port ${config.port}, and autostart is off.`,
+        "  Start it with:  npm start",
+        "",
+      ].join("\n"),
+    );
+    process.exit(1);
+  }
+
+  const logPath = path.join(path.resolve(config.dataDir), "server.log");
+  console.log(`starting SketchSpace (log: ${logPath})`);
+  const pid = startServerDetached({
+    repoRoot,
+    envPath: path.join(repoRoot, ".env"),
+    logPath,
+  });
+
+  if (!(await waitForServer(config.port))) {
+    console.error(
+      [
+        "",
+        `started pid ${pid} but port ${config.port} never answered.`,
+        `  Check ${logPath}`,
+        "",
+      ].join("\n"),
+    );
+    process.exit(1);
+  }
+  console.log(`started (pid ${pid})`);
 }
 
 const url = `http://localhost:${config.port}/#/board/${target.boardId}/${target.pageId}`;

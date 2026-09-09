@@ -129,6 +129,10 @@ explains the model. What will bite:
 layout file is gone *and* the page holds nothing the user drew, and never when a
 directory has no layouts at all. Keep both guards.
 
+**`scripts/lib/server-control.mjs` owns "is the server up?"** - both the
+autostart in `open-layout.mjs` and the guard in `require-server-stopped.mjs` use
+it. Two implementations of that question is exactly the drift that bit write-back.
+
 **Never write page_scenes directly while the server runs.** It caches open pages
 and overwrites on flush - the edit appears to work, then vanishes. Use
 `scripts/lib/require-server-stopped.mjs`, as the export and backfill scripts do.
