@@ -119,6 +119,16 @@ const syncLayout = (layoutPath: string, broadcast: Broadcast): void => {
     return; // mid-write; the next event will catch it
   }
 
+  // A readable file is not necessarily a complete one. Bonsai (and Inkscape)
+  // truncate the layout and write it again, so a watcher event can land on a
+  // half-written file - which still reads fine, still parses, and yields fewer
+  // placements than it should. Treated as real, that silently deletes every
+  // drawing on the sheet. Requiring the closing tag costs nothing and the next
+  // event brings the finished file.
+  if (!/<\/svg\s*>\s*$/.test(content)) {
+    return;
+  }
+
   const hash = createHash("sha256").update(content).digest("hex");
   if (selfWritten.get(layoutPath) === hash) {
     return; // our own write echoing back

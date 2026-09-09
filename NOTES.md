@@ -69,6 +69,19 @@ unchanged, so the normal sync path short-circuits. Two separate reasons for the
 same silence. Watched directories are derived from each layout's resolved hrefs,
 so they follow whatever Bonsai actually links to rather than an assumed layout.
 
+**The model and the layout can disagree, and the layout is what we see.**
+Bonsai's `remove_drawing` found a drawing's group by matching `data-id`, the
+reference's STEP id, which does not survive a merge or any round trip that
+renumbers entities. On a renumbered file the removal took the
+`IfcDocumentReference` out of the model and left the group in the layout, with no
+error - so Bonsai's Sheets panel showed the drawing gone while SketchSpace, which
+reads layouts, still showed it. We were the ones who noticed, precisely because
+we read the other source. Reported as
+[IfcOpenShell#9468](https://github.com/IfcOpenShell/IfcOpenShell/issues/9468) and
+fixed in [#9469](https://github.com/IfcOpenShell/IfcOpenShell/pull/9469); the
+repair for an already-diverged sheet is to delete the orphaned `<g>` blocks from
+the layout, keyed on `data-drawing`.
+
 **Layouts can reference other repositories.** `A000` links into
 `OD_Submodules/references/…` via a git submodule, so a board's assets may span
 repos.
@@ -102,6 +115,23 @@ command lines for "sketchspace" finds nothing and reports "not running" while it
 is plainly serving. Ask the port.
 
 ### Sync
+
+**A readable file is not a complete one.** Bonsai and Inkscape truncate the
+layout and write it again, so a watcher event can land mid-write. The partial
+file still reads without error and still parses - it simply has fewer placements
+than it should, and taking that at face value deletes every drawing on the
+sheet. Ours did exactly that: 18 placements gone from a live page in one pass.
+`readFileSync` succeeding says nothing about whether the writer has finished;
+`syncLayout` now requires a closing `</svg>` before it will believe what it read.
+
+**A deleted placement has to be revivable.** Once marked deleted, a placement
+that came back in the layout matched on geometry, produced no update, and stayed
+deleted forever - so removing a drawing from a sheet in Bonsai and putting it
+back would never have worked. `syncPageWithLayout` treats a deleted element whose
+placement is present again as a change in its own right.
+
+Those two are a pair, and the second is what made the first survivable: reviving
+the page was a matter of touching the layout, not restoring a backup.
 
 **A write must refresh its own baseline.** After writing `groupTx` to the layout,
 the element still held the old value, so the same delta looked pending forever and

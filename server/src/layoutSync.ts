@@ -178,12 +178,18 @@ export const syncPageWithLayout = (
       Math.abs(existing.width - width) > 0.01 ||
       Math.abs(existing.height - height) > 0.01;
 
+    // A placement we had marked deleted is back in the layout - a drawing
+    // removed from a sheet and put back, or a bad sync being corrected. Without
+    // this it stays deleted forever: the geometry matches, so nothing else here
+    // would produce an update, and the element is never revived.
+    const revived = existing.isDeleted === true;
+
     // A regenerated drawing changes bytes without necessarily moving, so the
     // stored image may be stale even when the geometry matches.
     const fileId = storeLinkedSvg(p.href, boardId);
     const refreshed = fileId !== null && fileId !== existing.fileId;
 
-    if (!moved && !refreshed) {
+    if (!moved && !refreshed && !revived) {
       continue;
     }
 
@@ -193,6 +199,7 @@ export const syncPageWithLayout = (
       y,
       width,
       height,
+      isDeleted: false,
       ...(fileId ? { fileId } : {}),
       version: existing.version + 1,
       versionNonce: Math.floor(Math.random() * 2 ** 31),
