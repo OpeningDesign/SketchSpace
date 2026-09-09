@@ -5,3 +5,6 @@ data/
 *.log
 tmp-*
 vendor/
+
+# editor workspaces hold absolute paths to a sibling excalidraw checkout
+*.code-workspace
