@@ -57,6 +57,12 @@ resource busy" on the `.db` files.
 lines for "sketchspace" matches nothing and reports "not running" while it is
 plainly serving.
 
+**Backups: `VACUUM INTO`, never the backup API.** The backup API copies the
+source's WAL mode, so the snapshot grows its own `-shm`/`-wal` as soon as
+anything opens it — three files again, and orphans when an old snapshot is
+pruned. `VACUUM INTO` writes a plain `journal_mode=delete` file. See
+`scripts/backup.mjs`.
+
 **`npm install` here is slow** (Dropbox + a better-sqlite3 native build). Run it
 in the background and expect minutes, not seconds.
 

@@ -18,7 +18,8 @@
     "smoke": "node scripts/smoke.mjs",
     "import:sheets": "node --env-file-if-exists=.env scripts/import-sheets.mjs",
     "export:layout": "node --env-file-if-exists=.env scripts/export-layout.mjs",
-    "backfill:layout": "node --env-file-if-exists=.env scripts/backfill-layout-meta.mjs"
+    "backfill:layout": "node --env-file-if-exists=.env scripts/backfill-layout-meta.mjs",
+    "backup": "node --env-file-if-exists=.env scripts/backup.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",

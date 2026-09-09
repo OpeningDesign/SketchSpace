@@ -394,6 +394,67 @@ metadata existed. Both **refuse to run while the server is up** (except
 `--dry-run`, which is read-only): the server caches open pages in memory and would
 overwrite a direct database edit on its next flush.
 
+## Backups
+
+Two halves, with very different value:
+
+| | size | replaceable? |
+| --- | --- | --- |
+| `sketchspace.db` | ~0.5 MB | **No.** Redlines, sheet arrangement, which layout maps to which tab |
+| `files/` | hundreds of MB | Yes — re-importable from Bonsai |
+
+Redlines exist nowhere else. The assets are derived from drawings that live in
+your own repositories.
+
+```bash
+npm run backup                                    # to the default location
+npm run backup -- --out D:/Dropbox/SS-Backups     # anywhere you like
+npm run backup -- --timestamped --keep 14         # if you have no versioning
+```
+
+`SKETCHSPACE_BACKUP_DIR` works too.
+
+**The script knows nothing about Dropbox, restic, borg or anything else.** Its
+only job is to produce a consistent `.db` at a path you choose; whatever backs
+that path up is your business. Point `--out` at a synced folder and you are done.
+
+It runs against the **live server** — no downtime. `VACUUM INTO` produces one
+self-contained, compacted file, written under a `.partial` name and renamed into
+place so a backup tool never catches a half-written snapshot. Every run verifies
+the result with `integrity_check` and a row count before reporting success.
+
+Defaults chosen to suit whatever is downstream: **one stable filename** (Dropbox
+versions a path, restic and borg deduplicate against the previous blob, rsync
+sends deltas — timestamps defeat all three), **no compression** (compresses
+badly against dedupe; your backup tool does it better), and **no retention**
+unless asked (restic `forget`, borg `prune` and Dropbox versions all do it
+properly).
+
+`files/` is not copied. It is content-addressed and written once, never modified
+in place, so it is safe to mirror live with any tool and needs no help from us.
+
+### Restoring
+
+```bash
+# 1. stop the server
+# 2. put the snapshot and the assets in one directory
+cp sketchspace-2026-09-09.db  <restore-dir>/sketchspace.db
+cp -r <old data dir>/files    <restore-dir>/files
+# 3. point the server at it
+SKETCHSPACE_DATA_DIR=<restore-dir> npm start
+```
+
+This procedure is exercised, not assumed: a server booted from a snapshot
+recovers every board and tab, and assets serve normally. Restore the `.db`
+without `files/` and the boards return with broken images — re-importing
+regenerates the assets but creates *new* boards, so redlines would not reattach.
+
+### Nightly
+
+Windows Task Scheduler, running `npm run backup` daily with the working
+directory set to this repo. Missed runs (machine asleep) are caught up on the
+next login.
+
 ## Deliberate limitations
 
 - **The password is the only boundary.** Anyone who knows it can read, edit, and
