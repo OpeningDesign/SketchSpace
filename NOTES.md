@@ -20,12 +20,20 @@ disturbing the arrangement, and a change is a readable git diff instead of a
 binary blob. Anchoring anything to the built sheet is anchoring to a flattened
 raster.
 
-**Write the group `transform`, never image `x`/`y`.** `build_drawings` in
-`sheeter.py` copies each `<g data-type="drawing">` into the built sheet with its
-attributes intact, swapping only the `<image>` children — so the group transform
-survives the build, while image `x`/`y` gets folded into an inner translate. It is
-also what Inkscape writes when you drag a group. Writing `x`/`y` instead fights
-Bonsai's own reflow logic.
+**Move a drawing with its group `transform`, never its foreground's `x`/`y`.**
+`build_drawings` in `sheeter.py` copies each `<g data-type="drawing">` into the
+built sheet with its attributes intact, swapping only the `<image>` children — so
+the group transform survives the build, while image `x`/`y` gets folded into an
+inner translate. It is also what Inkscape writes when you drag a group. The
+foreground's `x`/`y` belong to Bonsai, which re-centres them on every resize.
+
+**But a view-title's own `x`/`y` is exactly where to save a title move.** That
+"folded into an inner translate" is the point: `build_drawings` renders each
+image at its own offset within the group, and `update_drawing_sizes` shifts a
+title rather than recomputing it. So a title dragged away from its drawing is a
+change to that one image's `x`/`y` - which is also what Inkscape writes. The rule
+above was stated more broadly than it was true, and for a while the writer
+treated any title move as something to discard.
 
 **Position is `<g transform>` composed with `<image x/y>`.** Both are present in
 the wild — Bonsai writes the latter, Inkscape the former. Read one and you get
@@ -132,6 +140,29 @@ placement is present again as a change in its own right.
 
 Those two are a pair, and the second is what made the first survivable: reviving
 the page was a matter of touching the layout, not restoring a backup.
+
+**A move the writer declines to save must say so where someone will see it.**
+Moving only a view-title saved nothing: the writer skipped any group whose
+drawing had not moved, and the "moved separately; it will snap back" warning it
+would otherwise have produced went into a result object that autosave never
+printed. The title stayed where it was dropped on screen, the layout never
+changed, and nothing anywhere recorded why. Autosave now logs its warnings and
+errors.
+
+**"The first element of the group" is an accident of array order.** The writer
+derived each group's transform from `els[0]`. That was the drawing only because
+the drawing happened to be imported first; had the title come first, moving just
+the title would have dragged the whole drawing after it. The anchor is now chosen
+by role.
+
+**Bonsai's drawing groups have no `id`, and the writer finds them anyway - by
+accident.** The parser falls back to `data-id` for a group's key, and the writer
+locates the group with `\bid="<key>"`, which matches because there is a word
+boundary between the `-` and the `i` of `data-id`. It works and is left as it is,
+but it is keyed on the STEP id - the same value that goes stale after a merge
+(see *The model and the layout can disagree* above). A renumbered layout still
+matches, since the key is read from the same file it is written back to; what it
+cannot do is survive Bonsai renumbering the ids *between* our read and our write.
 
 **A write must refresh its own baseline.** After writing `groupTx` to the layout,
 the element still held the old value, so the same delta looked pending forever and

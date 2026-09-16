@@ -360,11 +360,13 @@ far more likely.
 
 ### Details that are load-bearing
 
-- **Write-back targets the group `transform`, not image `x`/`y`.** Bonsai's
-  `build_drawings` copies each `<g>` into the built sheet with attributes intact,
-  swapping only the `<image>` children, so the transform survives the build. It is
-  what Inkscape writes when you drag a group, and it leaves Bonsai's own
-  coordinates and reflow logic untouched.
+- **A drawing is written back as its group `transform`; a view-title moved on
+  its own, as the title's `x`/`y`.** Bonsai's `build_drawings` copies each `<g>`
+  into the built sheet with attributes intact, swapping only the `<image>`
+  children, so the transform survives the build - and it renders each image at
+  its own `x`/`y` within the group, which is what makes a title's offset safe to
+  write. Both are what Inkscape writes for the same drags, and neither touches
+  the foreground coordinates Bonsai re-centres on resize.
 - **The edit is string surgery on one attribute.** Re-serialising the XML would
   reformat the file and destroy the small diff that is the point of layouts.
 - **Writes refresh the stored baseline.** Our own writes are echo-suppressed by
@@ -379,7 +381,8 @@ far more likely.
 
 Sibling images of one layout group (foreground + view-title) are bound into an
 Excalidraw group so they move together, and the titleblock imports locked,
-honouring Bonsai's `sodipodi:insensitive`.
+honouring Bonsai's `sodipodi:insensitive`. To move a view-title on its own,
+double-click into the group and drag just the title; that position is saved too.
 
 **Moving a placement edits your project repository within ~2 seconds.** `git diff`
 reviews a session; `git checkout --` undoes it.

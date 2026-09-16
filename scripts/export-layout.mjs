@@ -42,9 +42,14 @@ for (const layout of result.layouts) {
   for (const m of layout.moved) {
     const label = m.globalId ? `[${m.globalId}]` : m.kind;
     const sign = (n) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}`;
-    console.log(
-      `  moved  ${m.groupKey.padEnd(6)} ${label.padEnd(26)} ${sign(m.dx)}, ${sign(m.dy)} mm`,
-    );
+    const drawingMoved = m.dx !== 0 || m.dy !== 0;
+    const what = [
+      drawingMoved ? `${sign(m.dx)}, ${sign(m.dy)} mm` : null,
+      m.titleMoved ? "view-title repositioned" : null,
+    ]
+      .filter(Boolean)
+      .join("; ");
+    console.log(`  moved  ${m.groupKey.padEnd(6)} ${label.padEnd(26)} ${what}`);
     for (const w of m.warnings) {
       console.log(`  WARN   ${w}`);
     }
