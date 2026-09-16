@@ -33,6 +33,9 @@ RUN npm install --omit=dev \
     && apt-get autoremove -y
 
 COPY --from=build /app/dist ./dist
+# Reads view-title and titleblock values from IFC files. Inert in this image,
+# which has no Python with ifcopenshell - see README, "Titles and titleblocks".
+COPY server/python ./server/python
 
 ENV PORT=3000
 ENV SKETCHSPACE_DATA_DIR=/data

@@ -131,6 +131,7 @@ boxes directly, so no coordinate maths of our own is involved.
 | `PORT`                      | no       | `3000`    |                                                              |
 | `SKETCHSPACE_DATA_DIR`       | no       | `./data`  | `/data` in the container.                                    |
 | `SKETCHSPACE_SECURE_COOKIE`  | no       | `false`   | Set `true` when behind TLS.                                  |
+| `SKETCHSPACE_PYTHON`         | no       | `python`  | A Python with `ifcopenshell`, to fill view-titles and titleblocks. See [Titles and titleblocks](#titles-and-titleblocks-show-real-values). |
 
 ## Where the editor comes from
 
@@ -325,6 +326,8 @@ resolves every drawing path relative to that file's directory.
   including Bonsai's reflow of its neighbours.
 - **Edit a linked file** — a titleblock, a view-title asset, a drawing redrawn
   without changing size — and every sheet placing it refreshes.
+- **Save the model** with a renamed sheet or drawing, a new scale, or a new git
+  tag, and the view-titles and titleblocks showing it update — see below.
 
 The directories watched for that last one are **derived from the layouts
 themselves**, not hardcoded and not read from the IFC: each `<image href>` is
@@ -333,6 +336,40 @@ So `schedules/` is watched only on projects that place one, and a reference
 living in another repo via a git submodule is followed just the same.
 
 Redlines are never written to the layout; they carry no `customData.bonsai`.
+
+### Titles and titleblocks show real values
+
+View-titles and titleblocks are Mustache templates — `{{Name}}`,
+`{{Identification}}`, `{{Scale}}`, a `{{#revisions}}` table — that Bonsai fills
+only when it builds a sheet. SketchSpace fills them the same way, so a tab reads
+`1 · MY STOREY PLAN · 1/4"=1'-0"` rather than its placeholders:
+
+| Template | Values | From |
+| --- | --- | --- |
+| View-title of a drawing | `Name`, `Identification`, `Scale`, and every `Sheet…` attribute | The drawing's reference on the sheet; `EPset_Drawing.HumanScale` (or `NTS`). An unnamed drawing uses its file name. |
+| View-title of a schedule or reference | The same, less `Scale` | Its reference on the sheet. An unnamed one uses the document's name, or `Unnamed`. |
+| Titleblock | The sheet's attributes; the `revisions` table; north arrows | The sheet; git tags on the IFC's repository; the model's georeferencing |
+
+This follows Bonsai's `sheeter.py` field for field, down to its quirks: an
+unset attribute prints as `None`, as it does on the built sheet. The revisions
+table mirrors Bonsai's git-tag feature — oldest tag at the bottom, dated by the
+tagged commit, the first line of its message, the tagger's initials — and is
+read with git directly, so it appears whichever Bonsai build made the sheet.
+
+**Where the values come from.** The server reads the **saved** `.ifc` with
+IfcOpenShell (`server/python/ifc_values.py`, run by `SKETCHSPACE_PYTHON`). The
+IFC used is the one whose sheet actually references the layout — project
+folders often hold merged copies — and the most recently saved if several do.
+Reads run in the background and are cached under the data directory by file
+and modification time, so a large model costs its read once. A tab shows raw
+placeholders until then, and fills in without a reload.
+
+It follows the saved file, not the model open in Blender: unsaved changes show
+after you save. Editing these values *from* SketchSpace will go through Bonsai
+instead — see the roadmap in NOTES.md.
+
+Without a usable Python the server logs one warning and everything else works
+as before. The Docker image does not include one.
 
 ### Sheet identity is content, not filename
 

@@ -27,6 +27,7 @@ import { MM_TO_PX } from "./bonsaiLayout.js";
 import { listPages } from "./db.js";
 import { noteSelfWrite } from "./layoutWatcher.js";
 import { applyUpdate, getElements } from "./store.js";
+import { escapeRegExp, setAttr } from "./svgText.js";
 
 import type { SyncElement } from "./types.js";
 
@@ -96,8 +97,6 @@ type SceneElement = {
 
 /* ---------------------------- string surgery ----------------------------- */
 
-const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
 /**
  * Locate one drawing group - its opening tag through the matching `</g>`.
  *
@@ -129,14 +128,6 @@ const findGroup = (svg: string, groupKey: string): { start: number; end: number 
     }
   }
   return null;
-};
-
-/** Set one attribute on a tag, by whole name - `x` must not hit `data-x`. */
-const setAttr = (tag: string, name: string, value: string): string => {
-  const re = new RegExp(`(\\s)${escapeRegExp(name)}\\s*=\\s*"[^"]*"`);
-  return re.test(tag)
-    ? tag.replace(re, `$1${name}="${value}"`)
-    : tag.replace(/(\s*\/?>)$/, ` ${name}="${value}"$1`);
 };
 
 /** A group with no transform yet gets one first, as Inkscape writes it. */

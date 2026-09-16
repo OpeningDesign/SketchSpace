@@ -23,12 +23,13 @@ import {
 } from "./db.js";
 import { parseLayout } from "./bonsaiLayout.js";
 import { syncPageWithLayout } from "./layoutSync.js";
+import { normalisePath } from "./paths.js";
 
 import type { Board, Page } from "./types.js";
 
 /** Windows hands back either slash and any case; compare normalised. */
-export const normalisePath = (p: string): string =>
-  path.resolve(p).replace(/\\/g, "/").toLowerCase();
+// Kept exported from here for existing callers; the one implementation lives in paths.ts.
+export { normalisePath };
 
 export const sheetName = (layoutPath: string): string =>
   path.basename(layoutPath, path.extname(layoutPath));

@@ -24,6 +24,7 @@ import {
   sheetName,
 } from "./layoutImport.js";
 import { parseLayout } from "./bonsaiLayout.js";
+import { onLayoutValuesChanged, primeLayoutValues } from "./ifcValues.js";
 import { rebindLayoutPath, syncPageWithLayout } from "./layoutSync.js";
 import { applyUpdate, getElements } from "./store.js";
 
@@ -156,16 +157,24 @@ const syncLayout = (layoutPath: string, broadcast: Broadcast): void => {
 };
 
 /**
- * Re-sync a layout because one of its *linked files* changed.
+ * Re-sync a layout whose *inputs* changed while the layout itself did not: a
+ * linked file (a redrawn titleblock), or the model values its templates show.
  *
  * `syncLayout` short-circuits when the layout's own content hash is unchanged,
- * which it is here - the titleblock moved, not the sheet. `syncPageWithLayout`
- * re-hashes every linked file, so simply running it picks the new bytes up.
+ * which it is here. `syncPageWithLayout` re-renders and re-hashes every linked
+ * file, so simply running it picks the change up.
  */
-const resyncLayoutAssets = (layoutPath: string, broadcast: Broadcast): void => {
+const resyncLayoutAssets = (
+  layoutPath: string,
+  broadcast: Broadcast,
+  reason = "linked asset changed",
+  templatesOnly = false,
+): void => {
   for (const { pageId, boardId } of scanLayouts().get(layoutPath) ?? []) {
     try {
-      const summary = syncPageWithLayout(getElements(pageId), boardId, layoutPath);
+      const summary = syncPageWithLayout(getElements(pageId), boardId, layoutPath, {
+        templatesOnly,
+      });
       if (summary.changed.length === 0) {
         continue;
       }
@@ -174,7 +183,7 @@ const resyncLayoutAssets = (layoutPath: string, broadcast: Broadcast): void => {
         broadcast(pageId, accepted);
       }
       console.log(
-        `[sketchspace] linked asset changed for ${path.basename(layoutPath)}: ` +
+        `[sketchspace] ${reason} for ${path.basename(layoutPath)}: ` +
           `~${summary.updated} placement(s) refreshed`,
       );
     } catch (error) {
@@ -426,10 +435,12 @@ const refreshWatches = (
     }
   }
 
+  const adopted: string[] = [];
   for (const layoutPath of wanted.keys()) {
     if (watchers.has(layoutPath) || !existsSync(layoutPath)) {
       continue;
     }
+    adopted.push(layoutPath);
     try {
       // Seed the hash so an unchanged file on boot is not treated as a change.
       selfWritten.set(
@@ -446,6 +457,14 @@ const refreshWatches = (
     } catch (error) {
       console.error(`[sketchspace] cannot watch ${layoutPath}:`, error);
     }
+  }
+
+  // Newly adopted layouts - every one, at startup - need their templates
+  // filled: boards imported before values existed, while the server was down,
+  // or by a CLI that could only use what was already cached. Those with values
+  // on hand are rendered now; the rest are notified once their IFC is read.
+  for (const layoutPath of primeLayoutValues(adopted)) {
+    resyncLayoutAssets(layoutPath, broadcast, "template values applied", true);
   }
 };
 
@@ -470,7 +489,15 @@ export const startLayoutWatcher = (
   );
   rescan.unref();
 
+  // Model values arrive in the background; fill templates in when they do.
+  const stopValues = onLayoutValuesChanged((layoutPaths) => {
+    for (const layoutPath of layoutPaths) {
+      resyncLayoutAssets(layoutPath, broadcast, "template values changed", true);
+    }
+  });
+
   return () => {
+    stopValues();
     clearInterval(rescan);
     for (const w of watchers.values()) {
       w.close();

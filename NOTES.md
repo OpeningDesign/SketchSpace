@@ -94,6 +94,48 @@ the layout, keyed on `data-drawing`.
 `OD_Submodules/references/…` via a git submodule, so a board's assets may span
 repos.
 
+### Filling templates
+
+**Match Bonsai's output, not what looks right.** pystache renders `None` as the
+word `None`, so a sheet with no revision prints `None` in its REV box - on
+Bonsai's own built sheet. Rendering it blank here would look better and make the
+two disagree, which is the one thing this must not do. `ifc_values.py` converts
+every value with `str()`, exactly as pystache would, and the built sheet is the
+test oracle: every value was checked against `sheets/*.svg`.
+
+**mustache.js and pystache agree on everything but escaping.** On the real
+templates, with names containing `&`, quotes, apostrophes and `/`, the output
+was byte-identical once escaping matched. mustache.js escapes `/`, `=` and
+backticks by default; pystache uses Python's `html.escape`, which does not. Left
+at the default, every imperial scale (`1/4"=1'-0"`) would render differently
+from the built sheet. A line-ending mismatch in the comparison was a red
+herring - Python's text mode had turned the template's CRLF into LF, which no
+XML consumer can see.
+
+**A layout does not say which IFC it belongs to.** Project folders hold merged
+copies and exports beside the real model, all referencing the same layouts.
+Picking the IFC whose sheet references the layout rules out the unrelated ones;
+the most recently saved breaks the remaining tie, and the tie is logged.
+
+**A slow read must stay out of the sync path.** A 75 MB model takes seconds to
+open. Extraction runs in the background, results are cached on disk by path,
+modified time and size, and a layout renders with raw placeholders until values
+arrive. CLIs never extract: a script importing a board would otherwise either
+wait for the read or exit and throw it away. They use the server's cache.
+
+**On Windows, reading a file is an event.** Node's `fs.watch` there reports
+last-access changes, so Python opening an IFC fired the directory watcher on the
+very file being read. Two seconds later the watcher looked it up, found no
+result yet, and queued it again - every model slower than the settle delay was
+read twice. The file being read is now never re-queued; a real save during the
+read is caught by comparing the file before and after.
+
+**A change of values is not a change of layout.** Refreshing templates with a
+full sync would re-read every drawing on every sheet, and would snap back a
+title moved seconds ago but not yet written. `templatesOnly` swaps template
+images and nothing else. It also has to happen at adoption, not just on
+change: boards imported before values existed would otherwise never fill in.
+
 ### Launching from Blender
 
 **Bonsai's `layout_svg_command` is `Popen` with no shell.** Every argument is its
@@ -319,6 +361,22 @@ in Blender from a redline — needs a small `sourcePage: "sketchspace"` branch.
 
 Worth upstreaming separately: `drawings_data` currently sends only `{name, path}`.
 Adding the GlobalId is a two-line change and obviously useful to any consumer.
+
+**Editing view-title and titleblock values from SketchSpace** rides on this, and
+is why the bridge is the long-term source for those values, not the file:
+
+1. **Done - read values from the saved IFC** (`ifcValues.ts`). View-only; works
+   with Blender closed, which is how most reviewers will see a board.
+2. **The bridge sends the same values live.** A `sheetvalues` message in the
+   shape `LayoutValues` already has - sheet attributes, per-placement data keyed
+   by file, north - taking precedence over the file while Bonsai is connected,
+   unsaved edits included. Needs the `sourcePage: "sketchspace"` handler.
+3. **Edits go to Bonsai, never the file.** Blender holds the model in memory:
+   a write to the `.ifc` is invisible to it and lost on its next save. And some
+   of these fields have side effects only Bonsai performs - renaming a sheet
+   renames its layout, renaming a drawing its SVG, the scale is tied to the
+   camera - so the handler must call Bonsai's own operations, which also makes
+   them undoable in Blender. Fields are editable only while the bridge is up.
 
 ### Git as the issuance log
 

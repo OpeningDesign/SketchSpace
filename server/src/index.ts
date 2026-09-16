@@ -34,6 +34,7 @@ import {
   renameBoard,
 } from "./db.js";
 import { flushLayoutAutosaves, pushBoardToLayouts } from "./layoutWriter.js";
+import { enableIfcExtraction } from "./ifcValues.js";
 import { startLayoutWatcher } from "./layoutWatcher.js";
 import { flushAll } from "./store.js";
 
@@ -249,6 +250,11 @@ const io = new Server(httpServer, {
 
 registerCollab(io);
 
+// Read the model values view-titles and titleblocks show. Only the server does
+// this; CLIs use what it has cached. Must precede the watcher, which asks for
+// values as it adopts each layout.
+const stopIfcExtraction = enableIfcExtraction();
+
 // Pull in changes Bonsai makes to imported layouts - drawings added or removed,
 // and the reflow that follows a regenerated drawing changing size.
 const stopLayoutWatcher = startLayoutWatcher(
@@ -293,6 +299,7 @@ const shutdown = (signal: string) => {
   shuttingDown = true;
   console.log(`[sketchspace] ${signal} received, flushing scenes...`);
   stopLayoutWatcher();
+  stopIfcExtraction();
   flushLayoutAutosaves();
   flushAll();
   io.close(() => {

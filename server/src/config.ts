@@ -27,4 +27,10 @@ export const config = {
   persistDebounceMs: 1000,
   /** How long a page stays cached in memory after its last viewer leaves. */
   pageEvictionMs: 1000 * 60 * 5,
+  /**
+   * A Python with ifcopenshell, used to read the values Bonsai fills into
+   * view-titles and titleblocks. Without one, those show their raw
+   * `{{placeholders}}` and everything else works as before.
+   */
+  python: process.env.SKETCHSPACE_PYTHON ?? "python",
 } as const;

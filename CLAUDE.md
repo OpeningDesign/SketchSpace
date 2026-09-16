@@ -78,6 +78,8 @@ in the background and expect minutes, not seconds.
 | HTTP routes, auth, static, files  | `server/src/index.ts`             |
 | Client collab wiring              | `client/src/useCollab.ts`         |
 | Editor mount + menu composition   | `client/src/Board.tsx`            |
+| Model values for templates        | `server/src/ifcValues.ts` + `server/python/ifc_values.py` |
+| Filling view-titles / titleblocks | `server/src/templates.ts`         |
 
 `server/src/reconcile.ts` intentionally mirrors
 `packages/excalidraw/data/reconcile.ts` upstream: higher `version` wins, ties
@@ -145,6 +147,29 @@ it. Two implementations of that question is exactly the drift that bit write-bac
 and overwrites on flush - the edit appears to work, then vanishes. Use
 `scripts/lib/require-server-stopped.mjs`, as the export and backfill scripts do.
 Creating *new* boards and pages is safe, which is why import does not need it.
+
+### Template values
+
+View-titles and titleblocks are filled from the model; see README, "Titles and
+titleblocks". What bites:
+
+- **Match Bonsai's output, quirks included.** `ifc_values.py` mirrors
+  `sheeter.py` (`build_drawings`, `build_documents`, `build_titleblock`,
+  `_get_git_revisions`) and converts values with `str()` as pystache does, so an
+  unset attribute is the word `None` - on the built sheet too. Do not "fix" it
+  here alone. Verify changes against a built `sheets/*.svg`.
+- **Escape like Python's `html.escape`, not mustache.js's default,** which also
+  escapes `/` and would change every imperial scale.
+- **Match a view-title to its reference by file, never `data-id`.** STEP ids do
+  not survive a merge (IfcOpenShell#9468).
+- **Extraction never runs in a CLI** (`enableIfcExtraction` is server-only).
+  Scripts use the server's disk cache; a CLI would otherwise block on, or
+  abandon, a read that takes seconds.
+- **A values refresh is `templatesOnly`.** It swaps template images and nothing
+  else - a full sync would re-read every drawing and snap back a title moved
+  seconds ago.
+- **It reads the saved file.** Writing values back must go through Bonsai, not
+  the `.ifc` on disk; Blender holds the model in memory and would overwrite it.
 
 ## Verifying
 

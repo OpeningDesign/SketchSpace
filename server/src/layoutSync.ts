@@ -22,8 +22,10 @@ import { writeAsset } from "./assets.js";
 import { inlineNestedImages, MM_TO_PX, parseLayout } from "./bonsaiLayout.js";
 import { newId, recordFile } from "./db.js";
 import { indexBetween } from "./fracIndex.js";
+import { getLayoutValues } from "./ifcValues.js";
+import { renderTemplate, renderTitleblock } from "./templates.js";
 
-import type { Placement } from "./bonsaiLayout.js";
+import type { Layout, Placement } from "./bonsaiLayout.js";
 import type { SyncElement } from "./types.js";
 
 export type SyncSummary = {
@@ -53,12 +55,22 @@ type PlacedElement = SyncElement & {
 /**
  * Store a linked SVG as a board file, inlining its own external references
  * first - a relative underlay reference dies once the SVG becomes a data: URL.
+ *
+ * `render` fills a template before anything else looks at it. The result is
+ * stored under its own hash, so each view-title becomes its own file, and a
+ * value that changes in the model changes the file - which is what makes an
+ * edited name or scale show up through the same path as a redrawn drawing.
  */
-const storeLinkedSvg = (href: string, boardId: string): string | null => {
+const storeLinkedSvg = (
+  href: string,
+  boardId: string,
+  render?: (svg: string) => string,
+): string | null => {
   if (!existsSync(href)) {
     return null;
   }
-  const { svg } = inlineNestedImages(readFileSync(href, "utf8"), path.dirname(href));
+  const raw = readFileSync(href, "utf8");
+  const { svg } = inlineNestedImages(render ? render(raw) : raw, path.dirname(href));
   const buf = Buffer.from(svg, "utf8");
   const fileId = createHash("sha256").update(buf).digest("hex").slice(0, 40);
 
@@ -122,6 +134,46 @@ export const placementToElement = (
   }) as unknown as SyncElement;
 
 /**
+ * How each placement's template is filled, if it is one - mirroring which
+ * images Bonsai renders with data in `build_titleblock`, `build_drawings` and
+ * `build_documents`.
+ *
+ * A view-title is matched to its sheet reference through the drawing or
+ * document it sits beside in the layout group, by file: the group's `data-id`
+ * is a STEP id and does not survive a re-serialised IFC. With no values yet (no
+ * Python, an unreadable model, an extraction still running) nothing is
+ * rendered, and the raw placeholders show - exactly as before this existed.
+ */
+const templateRenderers = (
+  layout: Layout,
+  layoutPath: string,
+): ((p: Placement) => ((svg: string) => string) | undefined) => {
+  const values = getLayoutValues(layoutPath);
+  if (!values) {
+    return () => undefined;
+  }
+
+  const contentOf = new Map<string, string>();
+  for (const p of layout.placements) {
+    if (p.role !== "view-title" && !contentOf.has(p.groupKey)) {
+      contentOf.set(p.groupKey, p.href);
+    }
+  }
+
+  return (p) => {
+    if (p.kind === "titleblock") {
+      return (svg) => renderTitleblock(svg, values.titleblock, values.north);
+    }
+    if (p.role !== "view-title") {
+      return undefined;
+    }
+    const content = contentOf.get(p.groupKey);
+    const data = content ? values.placement(content) : undefined;
+    return data ? (svg) => renderTemplate(svg, data) : undefined;
+  };
+};
+
+/**
  * Diff a page's imported placements against the layout on disk.
  * Returns only the elements that need to change.
  */
@@ -129,8 +181,19 @@ export const syncPageWithLayout = (
   current: readonly SyncElement[],
   boardId: string,
   layoutPath: string,
+  options: {
+    /**
+     * Only re-render the templates already on the page - titleblocks and
+     * view-titles - for when model values changed and the layout did not.
+     * Nothing moves, appears, or disappears: a title dragged a moment ago, not
+     * yet written back, must not be snapped back by a change of scale. And it
+     * skips re-reading every drawing, which a full sync does.
+     */
+    templatesOnly?: boolean;
+  } = {},
 ): SyncSummary => {
   const layout = parseLayout(layoutPath);
+  const rendererFor = templateRenderers(layout, layoutPath);
   const changed: SyncElement[] = [];
   let added = 0;
   let updated = 0;
@@ -149,6 +212,29 @@ export const syncPageWithLayout = (
     }
   }
 
+  if (options.templatesOnly) {
+    for (const p of layout.placements) {
+      const existing = mine.get(keyOf(p.groupKey, p.role));
+      const render = rendererFor(p);
+      if (!existing || existing.isDeleted || !render) {
+        continue;
+      }
+      const fileId = storeLinkedSvg(p.href, boardId, render);
+      if (!fileId || fileId === existing.fileId) {
+        continue;
+      }
+      changed.push({
+        ...existing,
+        fileId,
+        version: existing.version + 1,
+        versionNonce: Math.floor(Math.random() * 2 ** 31),
+        updated: Date.now(),
+      } as unknown as SyncElement);
+      updated++;
+    }
+    return { added, updated, removed, changed };
+  }
+
   const seen = new Set<string>();
 
   for (const p of layout.placements) {
@@ -157,7 +243,7 @@ export const syncPageWithLayout = (
     const existing = mine.get(key);
 
     if (!existing) {
-      const fileId = storeLinkedSvg(p.href, boardId);
+      const fileId = storeLinkedSvg(p.href, boardId, rendererFor(p));
       if (!fileId) {
         continue;
       }
@@ -186,7 +272,7 @@ export const syncPageWithLayout = (
 
     // A regenerated drawing changes bytes without necessarily moving, so the
     // stored image may be stale even when the geometry matches.
-    const fileId = storeLinkedSvg(p.href, boardId);
+    const fileId = storeLinkedSvg(p.href, boardId, rendererFor(p));
     const refreshed = fileId !== null && fileId !== existing.fileId;
 
     if (!moved && !refreshed && !revived) {
