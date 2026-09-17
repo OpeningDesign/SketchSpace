@@ -224,6 +224,7 @@ export const boundPages = (): BoundPage[] => {
   const out: BoundPage[] = [];
   for (const row of scenesWithBonsai()) {
     let elements: {
+      isDeleted?: boolean;
       customData?: { bonsai?: { layout?: string; globalId?: string | null } };
     }[];
     try {
@@ -238,7 +239,10 @@ export const boundPages = (): BoundPage[] => {
         continue;
       }
       const set = byLayout.get(b.layout) ?? new Set<string>();
-      if (b.globalId) {
+      // A deleted placement still says which layout the page belongs to, but is
+      // no longer one of its drawings - counting it made a renamed sheet look
+      // like a different one.
+      if (b.globalId && !el.isDeleted) {
         set.add(b.globalId);
       }
       byLayout.set(b.layout, set);

@@ -44,13 +44,31 @@ type Text = Record<string, string>;
 type SheetExtract = {
   identification: string;
   layout: string;
-  values: Text;
+  /**
+   * Text, except that Bonsai's live answer may also carry the titleblock's own
+   * `revisions` rows and `has_revisions` flag - which are then used as given.
+   */
+  values: TemplateData;
   placements: Record<string, Text>;
+  /**
+   * The same view-title data for drawings, by GlobalId. Used when the file
+   * lookup fails: a drawing renamed in Blender but not saved has already been
+   * moved on disk and relinked in the layout, while the saved model still names
+   * the old file.
+   */
+  drawings?: Record<string, Text>;
 };
 
-type IfcExtract = { ifc: string; sheets: SheetExtract[]; north: North };
+/** One model's values: from `ifc_values.py`, or live from Bonsai - same shape. */
+export type IfcExtract = { ifc: string; sheets: SheetExtract[]; north: North };
 
-type Cached = { mtimeMs: number; size: number; extract: IfcExtract };
+/**
+ * Bump when `ifc_values.py` output changes shape, so older cache entries are
+ * read again rather than served until the model happens to change.
+ */
+const CACHE_FORMAT = 2;
+
+type Cached = { format?: number; mtimeMs: number; size: number; extract: IfcExtract };
 
 export type Revision = {
   rev: string;
@@ -64,11 +82,15 @@ export type Revision = {
 export type LayoutValues = {
   /** The IFC these came from. */
   ifc: string;
+  /** Live from the model open in Blender, or read from the saved file. */
+  source: "bonsai" | "saved file";
   /** Titleblock data: the sheet's attributes, plus the revisions table. */
   titleblock: TemplateData;
   north: North;
   /** View-title data for the placement showing this file, if the sheet has one. */
   placement: (contentPath: string) => Text | undefined;
+  /** View-title data for a drawing, by GlobalId - the fallback when the file does not match. */
+  drawing: (globalId: string) => Text | undefined;
 };
 
 type Listener = (layoutPaths: string[]) => void;
@@ -83,6 +105,11 @@ const EXTRACT_TIMEOUT_MS = 10 * 60_000;
 
 let enabled = false;
 const memory = new Map<string, Cached>();
+/**
+ * Values sent live by a connected Blender, by connection. They win over the
+ * saved file for the same IFC: they include edits not yet saved.
+ */
+const live = new Map<string, { extract: IfcExtract; receivedAt: number }>();
 /** IFCs whose current version could not be read - not retried until they change. */
 const failed = new Map<string, string>();
 const queue: string[] = [];
@@ -122,7 +149,15 @@ const candidateIfcs = (dir: string): string[] => {
 };
 
 const notify = (dir: string) => {
-  const layouts = [...(layoutsByDir.get(normalisePath(dir))?.values() ?? [])];
+  const known = layoutsByDir.get(normalisePath(dir));
+  // Layouts renamed or deleted since they were asked about are dropped here;
+  // re-rendering them would only fail to open the file.
+  for (const [key, layoutPath] of known ?? []) {
+    if (!existsSync(layoutPath)) {
+      known!.delete(key);
+    }
+  }
+  const layouts = [...(known?.values() ?? [])];
   if (layouts.length === 0) {
     return;
   }
@@ -199,7 +234,12 @@ const pump = () => {
 
         const extract = parsed as IfcExtract;
         const previous = memory.get(key);
-        const cached: Cached = { mtimeMs: before.mtimeMs, size: before.size, extract };
+        const cached: Cached = {
+          format: CACHE_FORMAT,
+          mtimeMs: before.mtimeMs,
+          size: before.size,
+          extract,
+        };
         memory.set(key, cached);
         failed.delete(key);
         try {
@@ -237,7 +277,9 @@ const pump = () => {
 const lookup = (ifc: string, st: Stats): Cached | undefined => {
   const key = normalisePath(ifc);
   const current = (c: Cached | undefined) =>
-    c && c.mtimeMs === st.mtimeMs && c.size === st.size ? c : undefined;
+    c && c.format === CACHE_FORMAT && c.mtimeMs === st.mtimeMs && c.size === st.size
+      ? c
+      : undefined;
 
   let known = memory.get(key);
   if (current(known)) {
@@ -411,8 +453,55 @@ const watchProjectDir = (dir: string) => {
 
 /* ---------------------------------- API ---------------------------------- */
 
+const toLayoutValues = (
+  extract: IfcExtract,
+  sheet: SheetExtract,
+  source: LayoutValues["source"],
+  dir: string,
+): LayoutValues => {
+  const placements = new Map(
+    Object.entries(sheet.placements).map(([file, values]) => [normalisePath(file), values]),
+  );
+  // Bonsai builds with its own revision table where it has one; keep that
+  // rather than a second reading of the same tags.
+  const hasOwnRevisions = Array.isArray(sheet.values.revisions);
+  const rows = hasOwnRevisions ? [] : revisionsFor(dir);
+
+  return {
+    ifc: extract.ifc,
+    source,
+    titleblock: hasOwnRevisions
+      ? sheet.values
+      : { ...sheet.values, revisions: rows, has_revisions: rows.length > 0 },
+    north: extract.north,
+    placement: (contentPath) => placements.get(normalisePath(contentPath)),
+    drawing: (globalId) => sheet.drawings?.[globalId],
+  };
+};
+
+/**
+ * The live values for a layout, if a connected Blender has its model open.
+ * The most recent answer wins when more than one does.
+ */
+const liveValuesFor = (dirKey: string, target: string) => {
+  let best: { extract: IfcExtract; sheet: SheetExtract; receivedAt: number } | undefined;
+  for (const { extract, receivedAt } of live.values()) {
+    if (normalisePath(path.dirname(extract.ifc)) !== dirKey) {
+      continue;
+    }
+    const sheet = extract.sheets.find((s) => normalisePath(s.layout) === target);
+    if (sheet && (!best || receivedAt > best.receivedAt)) {
+      best = { extract, sheet, receivedAt };
+    }
+  }
+  return best;
+};
+
 /**
  * Template values for a layout, or null if none are available yet.
+ *
+ * A Blender that has the layout's model open answers first - its values include
+ * unsaved edits. Otherwise they come from the saved file.
  *
  * The layout's IFC is the one whose sheet actually references it, not merely
  * one in the same folder - project folders hold merged copies and exports.
@@ -432,6 +521,11 @@ export const getLayoutValues = (layoutPath: string): LayoutValues | null => {
     known.set(target, layoutPath);
   }
   watchProjectDir(dir);
+
+  const fromBonsai = liveValuesFor(dirKey, target);
+  if (fromBonsai) {
+    return toLayoutValues(fromBonsai.extract, fromBonsai.sheet, "bonsai", dir);
+  }
 
   const matches: { cached: Cached; sheet: SheetExtract; mtimeMs: number }[] = [];
   for (const ifc of candidateIfcs(dir)) {
@@ -461,17 +555,33 @@ export const getLayoutValues = (layoutPath: string): LayoutValues | null => {
     );
   }
 
-  const placements = new Map(
-    Object.entries(sheet.placements).map(([file, values]) => [normalisePath(file), values]),
-  );
-  const rows = revisionsFor(dir);
+  return toLayoutValues(cached.extract, sheet, "saved file", dir);
+};
 
-  return {
-    ifc: cached.extract.ifc,
-    titleblock: { ...sheet.values, revisions: rows, has_revisions: rows.length > 0 },
-    north: cached.extract.north,
-    placement: (contentPath) => placements.get(normalisePath(contentPath)),
-  };
+/**
+ * Record what a connected Blender reports - or, with null, that it has gone.
+ * Layouts in the affected project are re-rendered if anything changed, so a
+ * disconnect falls back to the saved file's values by itself.
+ */
+export const setLiveValues = (source: string, extract: IfcExtract | null): void => {
+  const previous = live.get(source)?.extract;
+  if (extract && extract.ifc) {
+    live.set(source, { extract, receivedAt: Date.now() });
+  } else {
+    live.delete(source);
+  }
+  const current = live.get(source)?.extract;
+  if (JSON.stringify(previous) === JSON.stringify(current)) {
+    return;
+  }
+  const dirs = new Set(
+    [previous?.ifc, current?.ifc].filter((ifc): ifc is string => Boolean(ifc)).map((ifc) =>
+      path.dirname(ifc),
+    ),
+  );
+  for (const dir of dirs) {
+    notify(dir);
+  }
 };
 
 /**

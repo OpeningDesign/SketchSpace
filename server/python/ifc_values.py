@@ -17,7 +17,8 @@ data. This builds it the way `sheeter.py` does, and prints it as JSON:
           "values": { ...sheet.get_info(), as text... },
           "placements": {
             "<absolute path of the placed drawing/document>": { ...view-title data... }
-          }
+          },
+          "drawings": { "<drawing GlobalId>": { ...the same data, for drawings... } }
         }
       ],
       "north": { "grid": "rotate(..)", "true": "rotate(..)" }
@@ -25,7 +26,10 @@ data. This builds it the way `sheeter.py` does, and prints it as JSON:
 
 Placements are keyed by the file they place, not by STEP id: the layout's
 `data-id` does not survive a re-serialisation of the IFC (IfcOpenShell#9468),
-while the file path does.
+while the file path does. Drawings are also keyed by GlobalId, for when the
+two disagree on the file - a drawing renamed in Blender but not yet saved has
+already been moved on disk and relinked in the layout, while this file still
+names the old path.
 
 Values are converted with str(), exactly as pystache would - so an unset
 attribute renders as "None" here just as it does on Bonsai's built sheet.
@@ -140,6 +144,7 @@ def main(ifc_path):
 
         sheet_info = sheet.get_info()
         placements = {}
+        by_drawing = {}
         for ref in refs:
             kind = description(ref)
             if kind in STRUCTURAL or not ref.Location:
@@ -160,11 +165,14 @@ def main(ifc_path):
                     data["Name"] = (document.Name if document is not None else None) or "Unnamed"
 
             placements[uri(ref.Location)] = as_text(data)
+            if kind == "DRAWING" and drawing is not None:
+                by_drawing[drawing.GlobalId] = as_text(data)
 
         sheets.append(
             {
                 "identification": text(getattr(sheet, "Identification", None)),
                 "layout": layout,
+                "drawings": by_drawing,
                 "values": as_text(sheet_info),
                 "placements": placements,
             }

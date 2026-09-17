@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import path from "node:path";
 
 const password = process.env.SKETCHSPACE_PASSWORD;
 if (!password) {
@@ -33,4 +34,17 @@ export const config = {
    * `{{placeholders}}` and everything else works as before.
    */
   python: process.env.SKETCHSPACE_PYTHON ?? "python",
+  /**
+   * Take template values live from Bonsai when Blender is connected - including
+   * unsaved edits - rather than only from the saved file. "off" disables it.
+   */
+  bonsaiBridge: process.env.SKETCHSPACE_BONSAI_BRIDGE !== "off",
+  /**
+   * Where Bonsai's web server records its ports (`running_pid.json`), separated
+   * by the platform's path delimiter. Empty means: look in every Blender
+   * version's user directory.
+   */
+  bonsaiWebuiDirs: (process.env.SKETCHSPACE_BONSAI_WEBUI ?? "")
+    .split(path.delimiter)
+    .filter(Boolean),
 } as const;

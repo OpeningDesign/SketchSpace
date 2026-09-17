@@ -23,6 +23,13 @@
  *   2. a board covers this layouts directory   -> add the sheet as a new tab
  *   3. neither                                 -> import the whole sheet set
  *
+ * While the server is running and already has a board for the directory, case
+ * 2 is left to it: the file may have just been renamed, and the server rebinds
+ * the existing tab. This waits for that, and adds the sheet itself only if the
+ * server never does.
+ *
+ * Pass --no-open to print the address without opening a browser.
+ *
  * Case 3 imports every sheet in the directory rather than only the one asked
  * for, because a board is an IFC file and its tabs are that file's sheets - a
  * board holding one arbitrary sheet would be a half-built thing. It can take a
@@ -75,7 +82,42 @@ if (!existsSync(layoutArg)) {
 const layoutPath = path.resolve(layoutArg);
 const layoutsDir = path.dirname(layoutPath);
 
+/** How long to let a running server bind a layout it is watching. */
+const SERVER_BIND_WAIT_MS = 8000;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const waitForPage = async () => {
+  const deadline = Date.now() + SERVER_BIND_WAIT_MS;
+  while (Date.now() < deadline) {
+    const found = findPageForLayout(layoutPath);
+    if (found) {
+      return found;
+    }
+    await sleep(250);
+  }
+  return null;
+};
+
+const serverWasRunning = await isPortListening(config.port);
 let target = findPageForLayout(layoutPath);
+
+if (!target) {
+  const board = findBoardForLayoutsDir(layoutsDir);
+
+  // A running server watches this board's folder and is the one that should
+  // change it. The file may have been renamed a moment ago - Bonsai's
+  // open_layout moves a sheet's files back into place and then launches this
+  // straight away - and the server will rebind the existing tab to it. Adding a
+  // tab here as well produced two tabs on one sheet. So wait for the server,
+  // and only add the sheet ourselves if it never does.
+  if (board && serverWasRunning) {
+    target = await waitForPage();
+    if (target) {
+      console.log(`SketchSpace has "${target.pageName}" for this layout`);
+    }
+  }
+}
 
 if (!target) {
   const board = findBoardForLayoutsDir(layoutsDir);
@@ -157,6 +199,10 @@ if (!(await isPortListening(config.port))) {
 const url = `http://localhost:${config.port}/#/board/${target.boardId}/${target.pageId}`;
 console.log(`opening ${target.boardName} / ${target.pageName}`);
 console.log(url);
+
+if (process.argv.includes("--no-open")) {
+  process.exit(0);
+}
 
 // Hand off to the platform's browser opener. detached + unref so Blender is not
 // left holding a child process.

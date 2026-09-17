@@ -14,7 +14,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { existsSync, readFileSync, watch, type FSWatcher } from "node:fs";
 
-import { db, deletePage, renamePage } from "./db.js";
+import { db, deletePage, listPages, renamePage } from "./db.js";
 import {
   addSheetToBoard,
   boundPages,
@@ -49,6 +49,8 @@ const dirWatchers = new Map<string, FSWatcher>();
 const assetWatchers = new Map<string, FSWatcher>();
 const assetDirLayouts = new Map<string, Set<string>>();
 const timers = new Map<string, NodeJS.Timeout>();
+/** Pages already reported as kept despite a missing layout. */
+const keptWarned = new Set<string>();
 
 /**
  * Content hashes of what we last wrote ourselves. The watcher ignores a change
@@ -170,6 +172,11 @@ const resyncLayoutAssets = (
   reason = "linked asset changed",
   templatesOnly = false,
 ): void => {
+  // Renamed or deleted a moment ago: the directory reconcile deals with that,
+  // and there is nothing here to re-render.
+  if (!existsSync(layoutPath)) {
+    return;
+  }
   for (const { pageId, boardId } of scanLayouts().get(layoutPath) ?? []) {
     try {
       const summary = syncPageWithLayout(getElements(pageId), boardId, layoutPath, {
@@ -243,8 +250,27 @@ const reconcileDirectory = (
     return fallback;
   };
 
+  // A page's identity is the set of drawings it *currently* places - so read
+  // from the store, and leave out placements already deleted. Counting a drawing
+  // removed from the sheet earlier made the page's set differ from its own
+  // renamed layout, and the rename was taken for a delete plus a new sheet.
+  const liveGuids = (pageId: string, layoutPath: string): string[] => {
+    const guids = new Set<string>();
+    for (const el of getElements(pageId)) {
+      const b = (el.customData as { bonsai?: { layout?: string; globalId?: string | null } } | undefined)
+        ?.bonsai;
+      if (!el.isDeleted && b?.layout === layoutPath && b.globalId) {
+        guids.add(b.globalId);
+      }
+    }
+    return [...guids].sort();
+  };
+
   const pagesHere = boundPages()
-    .map((p) => ({ ...p, layoutPath: livePath(p.pageId, p.layoutPath) }))
+    .map((p) => {
+      const layoutPath = livePath(p.pageId, p.layoutPath);
+      return { ...p, layoutPath, guids: liveGuids(p.pageId, layoutPath) };
+    })
     .filter(
       (p) => normalisePath(path.dirname(p.layoutPath)) === normalisePath(layoutsDir),
     );
@@ -267,40 +293,90 @@ const reconcileDirectory = (
 
   let pagesChanged = false;
 
-  for (const file of files) {
-    if (bound.has(normalisePath(file))) {
-      continue;
-    }
+  const newFiles = files.filter((file) => !bound.has(normalisePath(file)));
+  const vanished = pagesHere.filter(
+    (p) => p.boardId === boardId && !existsSync(p.layoutPath),
+  );
+  // Pages accounted for in this pass. The removal step below must skip them:
+  // it once went on to delete the very tab it had just renamed, because its
+  // list still held the page's old, now-missing layout path.
+  const rebound = new Set<string>();
 
+  const rebind = (page: (typeof vanished)[number], file: string, how: string) => {
+    const changed = rebindLayoutPath(getElements(page.pageId), page.layoutPath, file);
+    const accepted = applyUpdate(page.pageId, changed);
+    renamePage(page.pageId, sheetName(file));
+    if (accepted.length > 0) {
+      broadcast(page.pageId, accepted);
+    }
+    // Then catch up with the renamed file itself: it may hold an edit made just
+    // before the rename, and the watcher adopting it will take its current
+    // content as already seen.
+    const caughtUp = applyUpdate(
+      page.pageId,
+      syncPageWithLayout(getElements(page.pageId), page.boardId, file).changed,
+    );
+    if (caughtUp.length > 0) {
+      broadcast(page.pageId, caughtUp);
+    }
+    rebound.add(page.pageId);
+    bound.add(normalisePath(file));
+    pagesChanged = true;
+    console.log(
+      `[sketchspace] sheet renamed: "${page.pageName}" -> "${sheetName(file)}" (${how})`,
+    );
+  };
+
+  // 1. A renamed sheet places the same drawings as the page it was.
+  const unmatched: { file: string; guids: string[] }[] = [];
+  for (const file of newFiles) {
     const guids = drawingGuidSet(file);
-    const renamed = pagesHere.find(
+    const page = vanished.find(
       (p) =>
-        p.boardId === boardId &&
-        !existsSync(p.layoutPath) &&
+        !rebound.has(p.pageId) &&
         guids.length > 0 &&
         guids.length === p.guids.length &&
         guids.every((g, i) => g === p.guids[i]),
     );
+    if (page) {
+      rebind(page, file, "same drawings");
+    } else {
+      unmatched.push({ file, guids });
+    }
+  }
 
-    if (renamed) {
-      const changed = rebindLayoutPath(
-        getElements(renamed.pageId),
-        renamed.layoutPath,
-        file,
-      );
-      const accepted = applyUpdate(renamed.pageId, changed);
-      renamePage(renamed.pageId, sheetName(file));
-      if (accepted.length > 0) {
-        broadcast(renamed.pageId, accepted);
-      }
-      bound.add(normalisePath(file));
-      pagesChanged = true;
-      console.log(
-        `[sketchspace] sheet renamed: "${renamed.pageName}" -> "${sheetName(file)}"`,
-      );
+  // 2. Otherwise, the sheet number - the "A01" in "A01 - NAME.svg", which a
+  //    change of name keeps - together with the drawings, when they cannot
+  //    match exactly:
+  //    - a sheet with no drawings has nothing else to be recognised by;
+  //    - a sheet edited just before its rename (a drawing removed, say) has
+  //      drawings we have not caught up with yet, since the edit landed in the
+  //      file we can no longer read. Sharing a drawing and a number is enough.
+  //    Only an unambiguous pair counts: one such page, one such file.
+  const sheetNumber = (layoutPath: string) => sheetName(layoutPath).split(" - ")[0]!.trim();
+  const related = (a: readonly string[], b: readonly string[]) =>
+    a.length === 0 && b.length === 0 ? "same sheet number, no drawings"
+    : a.some((g) => b.includes(g)) ? "same sheet number, shared drawings"
+    : null;
+  const leftover: string[] = [];
+  for (const { file, guids } of unmatched) {
+    const number = sheetNumber(file);
+    const candidates = vanished.filter(
+      (p) =>
+        !rebound.has(p.pageId) &&
+        sheetNumber(p.layoutPath) === number &&
+        related(p.guids, guids) !== null,
+    );
+    const rivals = unmatched.filter((u) => sheetNumber(u.file) === number);
+    if (candidates.length === 1 && rivals.length === 1) {
+      rebind(candidates[0]!, file, related(candidates[0]!.guids, guids)!);
       continue;
     }
+    leftover.push(file);
+  }
 
+  // 3. Anything still unmatched is a new sheet.
+  for (const file of leftover) {
     const page = addSheetToBoard(boardId, file);
     bound.add(normalisePath(file));
     pagesChanged = true;
@@ -308,8 +384,8 @@ const reconcileDirectory = (
   }
 
   /*
-   * Pages whose layout file has vanished - the sheet was deleted in Bonsai, or
-   * renamed in a way we could not match.
+   * 4. Pages whose layout file has vanished and that nothing above claimed - the
+   * sheet was deleted in Bonsai, or renamed in a way we could not match.
    *
    * Remove the tab unless it carries something the user drew. A deleted sheet
    * should not leave a tab behind, but redlines are the one thing here that
@@ -318,22 +394,20 @@ const reconcileDirectory = (
    * Deletion is a soft delete, so even a wrong call is recoverable from the
    * database rather than destructive.
    */
-  for (const p of pagesHere) {
-    if (existsSync(p.layoutPath)) {
+  for (const p of vanished) {
+    if (rebound.has(p.pageId)) {
       continue;
     }
 
-    const ownWork = getElements(p.pageId).some(
-      (el) =>
-        !el.isDeleted &&
-        !(el.customData as { bonsai?: unknown } | undefined)?.bonsai,
-    );
-
-    if (ownWork) {
-      console.warn(
-        `[sketchspace] "${p.pageName}" has lost its layout ` +
-          `(${path.basename(p.layoutPath)}) but carries your own drawing, so it is kept`,
-      );
+    if (hasOwnWork(p.pageId)) {
+      // Once per page: this runs on every pass, and said so dozens of times.
+      if (!keptWarned.has(p.pageId)) {
+        keptWarned.add(p.pageId);
+        console.warn(
+          `[sketchspace] "${p.pageName}" has lost its layout ` +
+            `(${path.basename(p.layoutPath)}) but carries your own drawing, so it is kept`,
+        );
+      }
       continue;
     }
 
@@ -344,10 +418,69 @@ const reconcileDirectory = (
     );
   }
 
+  /*
+   * 5. Two live tabs on one layout. The CLI Bonsai launches can add a sheet in
+   * the moment before this pass renames an existing tab onto the same file -
+   * which `open_layout` makes likely, since it moves a file and launches the
+   * CLI straight after. Keep one: a tab holding the user's own drawing, else
+   * the first in tab order. Only duplicates with nothing of the user's on them
+   * are removed; if several have, all stay and that is reported.
+   */
+  const order = new Map(listPages(boardId).map((page, i) => [page.id, i]));
+  const byLayout = new Map<string, { pageId: string; pageName: string; file: string }[]>();
+  for (const p of boundPages()) {
+    const layoutPath = livePath(p.pageId, p.layoutPath);
+    if (p.boardId !== boardId || !order.has(p.pageId)) {
+      continue;
+    }
+    if (normalisePath(path.dirname(layoutPath)) !== normalisePath(layoutsDir)) {
+      continue;
+    }
+    const key = normalisePath(layoutPath);
+    const group = byLayout.get(key) ?? [];
+    if (!group.some((g) => g.pageId === p.pageId)) {
+      group.push({ pageId: p.pageId, pageName: p.pageName, file: path.basename(layoutPath) });
+    }
+    byLayout.set(key, group);
+  }
+  for (const group of byLayout.values()) {
+    if (group.length < 2) {
+      continue;
+    }
+    const ranked = group
+      .map((g) => ({ ...g, own: hasOwnWork(g.pageId) }))
+      .sort((a, b) => Number(b.own) - Number(a.own) || order.get(a.pageId)! - order.get(b.pageId)!);
+    const [kept, ...rest] = ranked;
+    for (const extra of rest) {
+      if (extra.own) {
+        if (!keptWarned.has(extra.pageId)) {
+          keptWarned.add(extra.pageId);
+          console.warn(
+            `[sketchspace] "${extra.pageName}" and "${kept!.pageName}" both show ` +
+              `${extra.file} and both carry your own drawing, so both are kept`,
+          );
+        }
+        continue;
+      }
+      deletePage(extra.pageId);
+      pagesChanged = true;
+      console.log(
+        `[sketchspace] removed duplicate tab "${extra.pageName}" - ` +
+          `another tab already shows ${extra.file}`,
+      );
+    }
+  }
+
   if (pagesChanged) {
     broadcastPages(boardId);
   }
 };
+
+/** Whether a page carries anything the user drew - which exists nowhere else. */
+const hasOwnWork = (pageId: string): boolean =>
+  getElements(pageId).some(
+    (el) => !el.isDeleted && !(el.customData as { bonsai?: unknown } | undefined)?.bonsai,
+  );
 
 const schedule = (layoutPath: string, broadcast: Broadcast): void => {
   clearTimeout(timers.get(layoutPath));

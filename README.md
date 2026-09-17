@@ -132,6 +132,8 @@ boxes directly, so no coordinate maths of our own is involved.
 | `SKETCHSPACE_DATA_DIR`       | no       | `./data`  | `/data` in the container.                                    |
 | `SKETCHSPACE_SECURE_COOKIE`  | no       | `false`   | Set `true` when behind TLS.                                  |
 | `SKETCHSPACE_PYTHON`         | no       | `python`  | A Python with `ifcopenshell`, to fill view-titles and titleblocks. See [Titles and titleblocks](#titles-and-titleblocks-show-real-values). |
+| `SKETCHSPACE_BONSAI_BRIDGE`  | no       | on        | `off` stops taking those values live from a running Bonsai.  |
+| `SKETCHSPACE_BONSAI_WEBUI`   | no       | found     | Where Bonsai's web server records its ports. Found in each Blender version's user folder unless set. |
 
 ## Where the editor comes from
 
@@ -356,20 +358,42 @@ table mirrors Bonsai's git-tag feature — oldest tag at the bottom, dated by th
 tagged commit, the first line of its message, the tagger's initials — and is
 read with git directly, so it appears whichever Bonsai build made the sheet.
 
-**Where the values come from.** The server reads the **saved** `.ifc` with
-IfcOpenShell (`server/python/ifc_values.py`, run by `SKETCHSPACE_PYTHON`). The
-IFC used is the one whose sheet actually references the layout — project
-folders often hold merged copies — and the most recently saved if several do.
-Reads run in the background and are cached under the data directory by file
-and modification time, so a large model costs its read once. A tab shows raw
-placeholders until then, and fills in without a reload.
+**Where the values come from.** Two places, in order:
 
-It follows the saved file, not the model open in Blender: unsaved changes show
-after you save. Editing these values *from* SketchSpace will go through Bonsai
-instead — see the roadmap in NOTES.md.
+1. **Live, from Blender**, when Blender has the project open. Bonsai answers
+   from the model in memory, so a rename or a new scale shows within a few
+   seconds — **before you save**. It is Bonsai's own sheet-building code
+   answering, so the values match whatever Bonsai you run.
+2. **The saved `.ifc`** otherwise, read with IfcOpenShell
+   (`server/python/ifc_values.py`, run by `SKETCHSPACE_PYTHON`). This is what
+   everyone without Blender open sees. Unsaved changes appear once saved.
 
-Without a usable Python the server logs one warning and everything else works
-as before. The Docker image does not include one.
+When Blender closes, tabs fall back to the saved file by themselves.
+
+For the saved file, the IFC used is the one whose sheet actually references
+the layout — project folders often hold merged copies — and the most recently
+saved if several do. Reads run in the background and are cached under the data
+directory by file and modification time, so a large model costs its read once.
+A tab shows raw placeholders until then, and fills in without a reload. Without
+a usable Python the server logs one warning and everything else works as
+before. The Docker image does not include one.
+
+**Live values need three things:**
+
+- **A Bonsai that can answer.** It needs the `sheets` web handler and the
+  *Keep Web Connection* preference. Both are in OpeningDesign's Bonsai build;
+  neither is upstream yet.
+- **Blender connected to Bonsai's web server.** In Bonsai's preferences, under
+  *Other → Web UI*, turn on **Keep Web Connection**. Blender then connects in
+  the background whenever it runs - starting Bonsai's web server if needed,
+  without opening a browser - and reconnects if the server goes away. It is off
+  by default, and saved with your preferences for that Blender version.
+- **SketchSpace on the same machine as Blender.** Bonsai's web server only
+  listens on `127.0.0.1`. SketchSpace finds it through the `running_pid.json`
+  file Bonsai writes, re-read every 10 seconds.
+
+Editing these values *from* SketchSpace will go through the same connection,
+never the file — see the roadmap in NOTES.md.
 
 ### Sheet identity is content, not filename
 

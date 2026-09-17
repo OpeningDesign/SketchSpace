@@ -79,6 +79,7 @@ in the background and expect minutes, not seconds.
 | Client collab wiring              | `client/src/useCollab.ts`         |
 | Editor mount + menu composition   | `client/src/Board.tsx`            |
 | Model values for templates        | `server/src/ifcValues.ts` + `server/python/ifc_values.py` |
+| Live values from Bonsai           | `server/src/bonsaiBridge.ts` (Bonsai side: `sheets` handler, *Keep Web Connection* preference) |
 | Filling view-titles / titleblocks | `server/src/templates.ts`         |
 
 `server/src/reconcile.ts` intentionally mirrors
@@ -114,6 +115,15 @@ explains the model. What will bite:
 - **A sheet is identified by its drawing GlobalId set, not its filename.** Bonsai
   renames the layout file when a sheet is renamed; path matching reads that as a
   new sheet and duplicates the tab. See `drawingGuidSet` / `findRenamedPage`.
+  The set must be the drawings the page places *now* - live from the store,
+  deleted placements left out. Failing an exact match, the sheet number plus a
+  shared drawing (or no drawings on either side) identifies it, if unambiguous.
+- **In `reconcileDirectory`, match every rename before removing anything,** and
+  never remove a page rebound in the same pass: its old layout path is gone by
+  definition. Its last step removes empty duplicate tabs on one layout.
+- **While the server runs, it is the one writer for a board it watches.**
+  `open-layout.mjs` waits for it to bind a layout rather than adding a sheet to
+  an existing board itself - racing it made two tabs for one sheet.
 - **Watch the directory, not only the files.** Additions and renames never reach
   a watcher bound to a path that no longer exists.
 - **`fs.watch` is not recursive.** A watch on `layouts/` cannot see
@@ -161,15 +171,51 @@ titleblocks". What bites:
 - **Escape like Python's `html.escape`, not mustache.js's default,** which also
   escapes `/` and would change every imperial scale.
 - **Match a view-title to its reference by file, never `data-id`.** STEP ids do
-  not survive a merge (IfcOpenShell#9468).
+  not survive a merge (IfcOpenShell#9468). A drawing falls back to its GlobalId,
+  for when the layout and the saved model disagree on the file - an unsaved
+  rename in Blender moves the SVG and relinks the layout immediately.
+- **Never re-render a filled title as raw.** A title that cannot be matched to
+  values keeps the image it has (`isUnmatched`); replacing it with
+  `{{placeholders}}` reads as a fault. `CACHE_FORMAT` in `ifcValues.ts` must be
+  bumped whenever `ifc_values.py` output changes shape, or stale cache entries
+  are served until each model happens to change.
 - **Extraction never runs in a CLI** (`enableIfcExtraction` is server-only).
   Scripts use the server's disk cache; a CLI would otherwise block on, or
   abandon, a read that takes seconds.
 - **A values refresh is `templatesOnly`.** It swaps template images and nothing
   else - a full sync would re-read every drawing and snap back a title moved
   seconds ago.
-- **It reads the saved file.** Writing values back must go through Bonsai, not
-  the `.ifc` on disk; Blender holds the model in memory and would overwrite it.
+- **Live values win over the saved file** (`setLiveValues`), and are dropped when
+  Blender disconnects or stops answering for 15 s - a tab must never keep
+  showing what a closed session last said.
+- **The live and file paths must keep one shape** (`IfcExtract`). Bonsai's side
+  is `SheetBuilder.get_template_values`, which calls the same methods its
+  sheet build does; `ifc_values.py` mirrors *upstream* Bonsai. Where Ryan's
+  build differs from upstream (drawing-name fallback, reference scales), live
+  values follow the build and file values follow upstream.
+- **Writing values back must go through Bonsai**, not the `.ifc` on disk;
+  Blender holds the model in memory and would overwrite it.
+
+### The Bonsai bridge
+
+`bonsaiBridge.ts` joins Bonsai's own socket.io server (`sioserver.py`) as a
+`/web` client and sends `web_operator` requests with `sourcePage: "sheets"`.
+
+- **Bonsai's server forwards only events it has a handler for.** A reply under a
+  new event name vanishes without error; `sheet_template_values` has one in
+  `sioserver.py`.
+- **`running_pid.json` keeps stale ports.** Every listed port is tried; a refused
+  one is skipped for 30 s.
+- **Loopback only.** Bonsai's server binds `127.0.0.1`, so the bridge needs
+  SketchSpace and Blender on the same machine.
+- **The Bonsai changes live in `C:\IfcOpenShell_worktrees\v0.8.0`** (Ryan's
+  build branch). Blender runs Bonsai from a linked checkout, and which one
+  changes - check before assuming:
+  `(Get-Item "$env:APPDATA\Blender Foundation\Blender\5.2\extensions\.local\lib\python3.13\site-packages\bonsai" -Force).Target`.
+  Upstream PRs are cherry-picked onto `v0.9.0` separately.
+- **Blender does not run timers headless.** To test the bridge in
+  `blender --background`, call `tool.Web.check_operator_queue()` in a loop
+  yourself; everything else - the real server, the real client - is live.
 
 ## Verifying
 

@@ -140,17 +140,28 @@ export const placementToElement = (
  *
  * A view-title is matched to its sheet reference through the drawing or
  * document it sits beside in the layout group, by file: the group's `data-id`
- * is a STEP id and does not survive a re-serialised IFC. With no values yet (no
- * Python, an unreadable model, an extraction still running) nothing is
- * rendered, and the raw placeholders show - exactly as before this existed.
+ * is a STEP id and does not survive a re-serialised IFC. A drawing's title
+ * falls back to its GlobalId - needed when the values come from a saved model
+ * that still names a drawing's old file, which Blender has already renamed.
+ *
+ * With no values yet (no Python, an unreadable model, an extraction still
+ * running) nothing is rendered, and the raw placeholders show - exactly as
+ * before this existed.
  */
-const templateRenderers = (
-  layout: Layout,
-  layoutPath: string,
-): ((p: Placement) => ((svg: string) => string) | undefined) => {
+type TemplateRendering = {
+  rendererFor: (p: Placement) => ((svg: string) => string) | undefined;
+  /**
+   * A view-title that has values to be filled from but cannot be matched to
+   * them right now. It keeps whatever image it already has: re-reading the
+   * template would put raw `{{placeholders}}` back over a filled title.
+   */
+  isUnmatched: (p: Placement) => boolean;
+};
+
+const templateRenderers = (layout: Layout, layoutPath: string): TemplateRendering => {
   const values = getLayoutValues(layoutPath);
   if (!values) {
-    return () => undefined;
+    return { rendererFor: () => undefined, isUnmatched: () => false };
   }
 
   const contentOf = new Map<string, string>();
@@ -160,16 +171,26 @@ const templateRenderers = (
     }
   }
 
-  return (p) => {
-    if (p.kind === "titleblock") {
-      return (svg) => renderTitleblock(svg, values.titleblock, values.north);
-    }
-    if (p.role !== "view-title") {
-      return undefined;
-    }
+  const dataFor = (p: Placement) => {
     const content = contentOf.get(p.groupKey);
-    const data = content ? values.placement(content) : undefined;
-    return data ? (svg) => renderTemplate(svg, data) : undefined;
+    return (
+      (content ? values.placement(content) : undefined) ??
+      (p.globalId ? values.drawing(p.globalId) : undefined)
+    );
+  };
+
+  return {
+    rendererFor: (p) => {
+      if (p.kind === "titleblock") {
+        return (svg) => renderTitleblock(svg, values.titleblock, values.north);
+      }
+      if (p.role !== "view-title") {
+        return undefined;
+      }
+      const data = dataFor(p);
+      return data ? (svg) => renderTemplate(svg, data) : undefined;
+    },
+    isUnmatched: (p) => p.role === "view-title" && !dataFor(p),
   };
 };
 
@@ -193,7 +214,7 @@ export const syncPageWithLayout = (
   } = {},
 ): SyncSummary => {
   const layout = parseLayout(layoutPath);
-  const rendererFor = templateRenderers(layout, layoutPath);
+  const { rendererFor, isUnmatched } = templateRenderers(layout, layoutPath);
   const changed: SyncElement[] = [];
   let added = 0;
   let updated = 0;
@@ -272,7 +293,8 @@ export const syncPageWithLayout = (
 
     // A regenerated drawing changes bytes without necessarily moving, so the
     // stored image may be stale even when the geometry matches.
-    const fileId = storeLinkedSvg(p.href, boardId, rendererFor(p));
+    // An unmatched view-title keeps its current image (see isUnmatched).
+    const fileId = isUnmatched(p) ? null : storeLinkedSvg(p.href, boardId, rendererFor(p));
     const refreshed = fileId !== null && fileId !== existing.fileId;
 
     if (!moved && !refreshed && !revived) {

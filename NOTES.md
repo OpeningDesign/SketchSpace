@@ -65,6 +65,49 @@ identity is the *set* of drawing GlobalIds the layout places - that survives
 renaming. Filenames also differ from Bonsai's display names, since Bonsai strips
 commas when writing them.
 
+**Bonsai renames files at once, but the model only when saved.** Renaming a
+sheet moves its layout and built sheet; renaming a drawing moves its SVG and
+rewrites its href in every layout - all on disk, immediately. The new names
+reach the IFC only on save. Reopen without saving and the model points at files
+that are gone: `bim.open_layout` died with `FileNotFoundError`. Ryan's Bonsai
+build now puts such files back where the open model expects them - found as
+unclaimed files belonging to the sheet, and for drawings through the layout,
+which still ties each drawing's GlobalId to the file it was moved to - and says
+which files it moved. It does so for every sheet at once, whichever one was
+opened: the first version fixed only the active sheet, so the tab for another
+kept its unsaved name here. And a drawing placed on several sheets has every
+layout repointed, not just the first one processed. SketchSpace sees that as ordinary renames. Still to be
+offered upstream, separately from the bridge.
+
+**Renaming a sheet could delete its tab - twice over.** The log said it plainly:
+`sheet renamed: "A01 - …" -> "A01 - thingers"`, then on the next line
+`removed tab "A01 - …" - its sheet is gone`. The removal step walked a list
+taken before the rename, where the page still pointed at its old, now-missing
+layout, and deleted the tab it had just renamed. Only tabs with no redlines on
+them went, which is why it looked intermittent. Separately, a sheet whose
+drawing had been removed earlier was not recognised at all: the page's drawing
+set still counted the deleted placement, so it never equalled the renamed
+file's. Both are fixed; the removal step now skips every page rebound in the
+pass, and drawing sets come from the live store without deleted placements.
+
+**Two writers, one board, one sheet.** With Bonsai now moving a renamed file
+back and launching `open-layout.mjs` in the same breath, the script looked for a
+tab bound to the restored path before the server had rebound one - found none,
+and added a sheet. A second later the server renamed the existing tab onto the
+same file: two tabs, one layout. The script now leaves an existing board to a
+running server, waiting up to 8 s for it to bind the file and adding the sheet
+itself only if it never does. And the server removes any empty duplicate tab on
+a layout during reconcile, which also repaired the board this happened on.
+
+**Exact drawing sets are not always available.** An edit made just before a
+rename lands in a file that is gone by the time the rename is seen, so the page
+is one step behind. A sheet with no drawings has no set at all. For those, the
+sheet number ("A01", which a change of name keeps) plus a shared drawing - or
+no drawings on either side - identifies it, provided only one page and one file
+qualify. A rebound page is then synced against its new file straight away, since
+the watcher adopting that file takes its content as already seen. Tested by
+removing a drawing and renaming 200 ms later.
+
 **Watch the directory, not just the files.** A watcher bound to a path cannot see
 a sibling appear or that path be renamed away, so new sheets never showed up and
 renames duplicated. Reconciling the directory on adoption and at startup also
@@ -123,6 +166,23 @@ modified time and size, and a layout renders with raw placeholders until values
 arrive. CLIs never extract: a script importing a board would otherwise either
 wait for the read or exit and throw it away. They use the server's cache.
 
+**A fallback must not look like a fault.** Rename a drawing in Bonsai without
+saving: the SVG is moved and every layout relinked at once, so the layout names
+a file the saved model has never heard of. Matching view-titles by file alone
+then found nothing, and a filled title was replaced with raw `{{Name}}` and
+`{{Scale}}` - which reads as broken, not as "showing you the last saved state".
+Two changes: a drawing's title also matches on its GlobalId, which the layout
+carries and a rename does not change, so the saved *name* shows until you save;
+and a title that cannot be matched keeps the image it has rather than being
+re-rendered raw. It surfaced because the live connection had quietly gone (see
+below) and everything fell back to the saved file.
+
+**The live connection is not a given.** It goes when Blender closes, when its
+web server dies, and it never existed if nobody turned *Keep Web Connection*
+on. Seven dead ports had piled up in `running_pid.json` from earlier sessions.
+Whatever the saved file cannot answer has to degrade to something truthful, not
+to placeholders.
+
 **On Windows, reading a file is an event.** Node's `fs.watch` there reports
 last-access changes, so Python opening an IFC fired the directory watcher on the
 very file being read. Two seconds later the watcher looked it up, found no
@@ -135,6 +195,56 @@ full sync would re-read every drawing on every sheet, and would snap back a
 title moved seconds ago but not yet written. `templatesOnly` swaps template
 images and nothing else. It also has to happen at adoption, not just on
 change: boards imported before values existed would otherwise never fill in.
+
+### The live bridge
+
+**Opening a project quietly broke Bonsai's web connection.** `bim.load_project`
+calls `wm.read_homefile`, which replaces the scene - and Bonsai kept its
+"connected" flag on the scene, and registered its request timer as an ordinary
+one, which Blender removes on file load. The socket stayed open; nothing
+answered it any more. It was an existing bug, not ours, but a live bridge is
+useless on top of it. Bonsai now judges the connection by the client itself,
+registers the timer as persistent, and copies the state back onto the new
+scene on `load_post`. Confirmed headless: after a load, an ordinary timer was
+gone and the persistent one was not.
+
+**`bpy.app.timers.is_registered` matches by identity.** `cls.method` is a new
+bound-method object on every access, so asking about `tool.Web.check_operator_queue`
+answers "no" even while it is registered. Keep the registered object and ask
+about that one. The first test of the fix above reported failure for this
+reason alone.
+
+**Bonsai's web server forwards only events it knows.** A reply emitted under a
+new event name is dropped without a word - `sioserver.py` needs a handler that
+passes it on. The request direction needs nothing: `web_operator` is routed by
+`sourcePage` inside Blender.
+
+**The sheet builder is not one thing.** Ryan's Bonsai build falls back to the
+drawing's name for an unnamed view-title and reads a scale for references;
+upstream does neither. A copy of the logic is always a copy of *some* version.
+That is the real argument for asking Bonsai: the live answer comes from the
+code that builds the sheet. `ifc_values.py` mirrors upstream and is only the
+fallback.
+
+**`running_pid.json` is a record, not the truth.** Only Bonsai's explicit "kill
+server" ever removed an entry, so quitting Blender left one behind and the file
+gained a dead server per session - seven of them here. Bonsai now drops entries
+whose port no longer answers when a server starts, and removes its own on a
+clean exit. SketchSpace still tries every listed port and skips the ones that
+refuse: a server can die at any moment, whatever the file says.
+
+**The "stay connected" part belongs in Bonsai, not beside it.** It first shipped
+as a small SketchSpace Blender add-on, loaded through OpeningDesign's shared
+startup loader - wrong on both counts. The add-on was only a timer calling
+Bonsai's own connect operator, and it was useless without the Bonsai changes
+anyway, so two separately installed pieces could only drift. It is now an
+opt-in Bonsai preference, *Keep Web Connection* - nothing SketchSpace-specific
+in it, and useful to Bonsai's own web pages too.
+
+**Blender will not run timers headless.** Everything else in the bridge - the
+real `sioserver.py`, the real client, a real model loaded, an unsaved rename -
+was tested with `blender --background` by calling the queue processor in a
+loop, which is all Blender's timer does.
 
 ### Launching from Blender
 
@@ -353,11 +463,13 @@ Bonsai's own BCF module, rather than a private format.
 
 ### Live bridge to Bonsai
 
-Replace manual `import:sheets` with a connection to Bonsai's socket.io server on
-the `/web` namespace. The read path needs **no upstream changes**: claim
-`sourcePage: "drawings"` and `handle_drawings_operator` answers unmodified. Port
-discovery is a read of `running_pid.json`. The write path — selecting an element
-in Blender from a redline — needs a small `sourcePage: "sketchspace"` branch.
+The connection exists now (`bonsaiBridge.ts`): SketchSpace joins Bonsai's
+socket.io server on `/web`, found through `running_pid.json`, and Blender is kept
+connected by Bonsai's own *Keep Web Connection* preference. It carries template values so far
+(below). Still to ride on it: replacing manual `import:sheets` -
+`sourcePage: "drawings"` already answers with the sheet and drawing lists - and
+selecting an element in Blender from a redline, which needs its own request in
+the `sheets` handler.
 
 Worth upstreaming separately: `drawings_data` currently sends only `{name, path}`.
 Adding the GlobalId is a two-line change and obviously useful to any consumer.
@@ -367,10 +479,11 @@ is why the bridge is the long-term source for those values, not the file:
 
 1. **Done - read values from the saved IFC** (`ifcValues.ts`). View-only; works
    with Blender closed, which is how most reviewers will see a board.
-2. **The bridge sends the same values live.** A `sheetvalues` message in the
-   shape `LayoutValues` already has - sheet attributes, per-placement data keyed
-   by file, north - taking precedence over the file while Bonsai is connected,
-   unsaved edits included. Needs the `sourcePage: "sketchspace"` handler.
+2. **Done - the bridge sends the same values live** (`bonsaiBridge.ts`).
+   Bonsai's `sourcePage: "sheets"` handler answers `getTemplateValues` with
+   `SheetBuilder.get_template_values`, in the same shape as the file reader,
+   and those values win while Blender is connected. Lives on Ryan's Bonsai
+   build branch; still to be offered upstream.
 3. **Edits go to Bonsai, never the file.** Blender holds the model in memory:
    a write to the `.ifc` is invisible to it and lost on its next save. And some
    of these fields have side effects only Bonsai performs - renaming a sheet

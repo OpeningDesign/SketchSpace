@@ -34,6 +34,7 @@ import {
   renameBoard,
 } from "./db.js";
 import { flushLayoutAutosaves, pushBoardToLayouts } from "./layoutWriter.js";
+import { startBonsaiBridge } from "./bonsaiBridge.js";
 import { enableIfcExtraction } from "./ifcValues.js";
 import { startLayoutWatcher } from "./layoutWatcher.js";
 import { flushAll } from "./store.js";
@@ -254,6 +255,8 @@ registerCollab(io);
 // this; CLIs use what it has cached. Must precede the watcher, which asks for
 // values as it adopts each layout.
 const stopIfcExtraction = enableIfcExtraction();
+// ...and take them live from any Blender that has the model open.
+const stopBonsaiBridge = startBonsaiBridge();
 
 // Pull in changes Bonsai makes to imported layouts - drawings added or removed,
 // and the reflow that follows a regenerated drawing changing size.
@@ -299,6 +302,7 @@ const shutdown = (signal: string) => {
   shuttingDown = true;
   console.log(`[sketchspace] ${signal} received, flushing scenes...`);
   stopLayoutWatcher();
+  stopBonsaiBridge();
   stopIfcExtraction();
   flushLayoutAutosaves();
   flushAll();

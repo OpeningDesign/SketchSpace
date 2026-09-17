@@ -27,7 +27,8 @@
     "express": "^4.21.2",
     "fast-xml-parser": "^5.11.1",
     "mustache": "^4.2.0",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@braintree/sanitize-url": "6.0.2",
@@ -70,7 +71,6 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "roughjs": "4.6.4",
-    "socket.io-client": "^4.8.1",
     "tsx": "^4.19.2",
     "tunnel-rat": "0.1.2",
     "typescript": "^5.7.2",
