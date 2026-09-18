@@ -26,7 +26,7 @@
  * `data-drawing` is an IFC GlobalId - the stable anchor a redline should hang
  * off, since it survives regeneration, renaming and re-arrangement.
  */
-import { readFileSync } from "node:fs";
+import { closeSync, openSync, readFileSync, readSync } from "node:fs";
 import path from "node:path";
 
 import { XMLParser } from "fast-xml-parser";
@@ -83,7 +83,66 @@ const num = (v: unknown, fallback = 0): number => {
 };
 
 /** "863.59998mm" -> 863.59998 */
-const mm = (v: unknown): number => num(String(v ?? "").replace(/mm$/i, ""));
+/**
+ * A length in millimetres, in the units SVG allows - mirroring
+ * `SheetBuilder.convert_to_mm`. A bare number is user units, which in Bonsai's
+ * layouts and drawings are millimetres.
+ */
+const UNITS_TO_MM: Record<string, number> = {
+  mm: 1,
+  cm: 10,
+  q: 0.25,
+  in: 25.4,
+  pc: 25.4 / 6,
+  pt: 25.4 / 72,
+  px: 25.4 / 96,
+};
+
+const mm = (v: unknown): number => {
+  const text = String(v ?? "").trim();
+  const match = /^([-\d.eE+]+)\s*(mm|cm|Q|in|pc|pt|px)?$/.exec(text);
+  if (!match) {
+    return num(text.replace(/mm$/i, ""));
+  }
+  return num(match[1]) * (match[2] ? (UNITS_TO_MM[match[2].toLowerCase()] ?? 1) : 1);
+};
+
+/**
+ * The size an SVG declares on its own root element, in millimetres.
+ *
+ * A drawing regenerated at a different size does not resize its placement: the
+ * layout keeps the old width and height until Bonsai reflows the sheet
+ * (`update_sheet_drawing_sizes`, run by Open Layout and Create Sheets). Until
+ * then the layout's box and the drawing disagree, and drawing one into the
+ * other stretches it - so the file's own size is what gets used.
+ *
+ * Only the head of the file is read: these attributes are on the root element,
+ * and a drawing can be megabytes.
+ */
+export const intrinsicSizeMm = (
+  file: string,
+): { width: number; height: number } | null => {
+  let head: string;
+  try {
+    const handle = openSync(file, "r");
+    const buffer = Buffer.alloc(8192);
+    const read = readSync(handle, buffer, 0, buffer.length, 0);
+    closeSync(handle);
+    head = buffer.subarray(0, read).toString("utf8");
+  } catch {
+    return null;
+  }
+
+  const root = /<svg\b[^>]*>/.exec(head);
+  if (!root) {
+    return null; // not an SVG, or a root tag longer than the head we read
+  }
+  const attr = (name: string) =>
+    new RegExp(`\\s${name}\\s*=\\s*"([^"]*)"`).exec(root[0])?.[1];
+  const width = mm(attr("width"));
+  const height = mm(attr("height"));
+  return width > 0 && height > 0 ? { width, height } : null;
+};
 
 /**
  * Bonsai writes x/y onto the <image>; Inkscape adds transform="translate(..)"

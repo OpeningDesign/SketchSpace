@@ -19,7 +19,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { writeAsset } from "./assets.js";
-import { inlineNestedImages, MM_TO_PX, parseLayout } from "./bonsaiLayout.js";
+import { inlineNestedImages, intrinsicSizeMm, MM_TO_PX, parseLayout } from "./bonsaiLayout.js";
 import { newId, recordFile } from "./db.js";
 import { indexBetween } from "./fracIndex.js";
 import { getLayoutValues } from "./ifcValues.js";
@@ -195,6 +195,74 @@ const templateRenderers = (layout: Layout, layoutPath: string): TemplateRenderin
 };
 
 /**
+ * Placements with each drawing at the size of the drawing itself.
+ *
+ * Regenerating a drawing at a different size does not resize its placement:
+ * the layout keeps the old width and height until Bonsai reflows the sheet
+ * (`update_sheet_drawing_sizes`, run by Open Layout and Create Sheets). Drawing
+ * the new file into the old box stretches it, so the file's own size wins here,
+ * and the view-title moves with the bottom edge exactly as Bonsai's reflow moves
+ * it. The layout is left alone: Bonsai writes those sizes when it reflows, and
+ * this then agrees with it.
+ *
+ * `imgY` follows the title, so the writer sees no move and does not push one
+ * back.
+ */
+const drawingDeltas = (layout: Layout): Map<string, { width: number; height: number }> => {
+  const deltas = new Map<string, { width: number; height: number }>();
+  for (const p of layout.placements) {
+    if (p.kind !== "drawing" || p.role !== "foreground") {
+      continue;
+    }
+    const size = intrinsicSizeMm(p.href);
+    if (!size) {
+      continue;
+    }
+    const width = size.width - p.width;
+    const height = size.height - p.height;
+    if (Math.abs(width) > 0.01 || Math.abs(height) > 0.01) {
+      deltas.set(p.groupKey, { width, height });
+    }
+  }
+  return deltas;
+};
+
+/**
+ * Whether any drawing on this sheet is no longer the size its layout gives it -
+ * cheap, reading only each drawing's first few KB. Used to decide whether a
+ * sheet is worth re-syncing on adoption; a drawing regenerated while the server
+ * was down would otherwise stay stretched until something else changed.
+ */
+export const drawingSizesChanged = (layoutPath: string): boolean => {
+  try {
+    return drawingDeltas(parseLayout(layoutPath)).size > 0;
+  } catch {
+    return false;
+  }
+};
+
+const resizeToDrawings = (layout: Layout): ((p: Placement) => Placement) => {
+  const deltas = drawingDeltas(layout);
+  if (deltas.size === 0) {
+    return (p) => p;
+  }
+
+  return (p) => {
+    const delta = deltas.get(p.groupKey);
+    if (!delta) {
+      return p;
+    }
+    if (p.role === "foreground") {
+      return { ...p, width: p.width + delta.width, height: p.height + delta.height };
+    }
+    if (p.role === "view-title") {
+      return { ...p, y: p.y + delta.height, imgY: p.imgY + delta.height };
+    }
+    return p;
+  };
+};
+
+/**
  * Diff a page's imported placements against the layout on disk.
  * Returns only the elements that need to change.
  */
@@ -215,6 +283,7 @@ export const syncPageWithLayout = (
 ): SyncSummary => {
   const layout = parseLayout(layoutPath);
   const { rendererFor, isUnmatched } = templateRenderers(layout, layoutPath);
+  const resized = resizeToDrawings(layout);
   const changed: SyncElement[] = [];
   let added = 0;
   let updated = 0;
@@ -258,7 +327,8 @@ export const syncPageWithLayout = (
 
   const seen = new Set<string>();
 
-  for (const p of layout.placements) {
+  for (const raw of layout.placements) {
+    const p = resized(raw);
     const key = keyOf(p.groupKey, p.role);
     seen.add(key);
     const existing = mine.get(key);

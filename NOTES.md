@@ -166,6 +166,23 @@ modified time and size, and a layout renders with raw placeholders until values
 arrive. CLIs never extract: a script importing a board would otherwise either
 wait for the read or exit and throw it away. They use the server's cache.
 
+**A drawing is the size it says it is.** Change a camera's width and regenerate
+the drawing, and the new SVG goes into the old box in the layout: Bonsai only
+rewrites those numbers when it reflows the sheet, on Open Layout or Create
+Sheets. Drawn into the stale box, the drawing is stretched - a redline placed
+over it would be in the wrong place. The linked file's own size now wins, and
+the view-title moves with the bottom edge exactly as Bonsai's reflow moves it
+(`update_sheet_drawing_sizes`). The layout is left alone: Bonsai writes those
+sizes when it reflows, and this agrees with it in advance rather than fighting
+it. `imgY` follows the title, so the writer sees no move to push back.
+
+**Cheap to check, expensive to fix - so check first.** Reading each drawing's
+first 8 KB to compare sizes takes ~90 ms across every sheet of every board;
+re-syncing a sheet re-reads and re-hashes megabytes. So adoption checks
+first and only re-syncs the sheets that disagree. Done in one synchronous pass
+it still held the event loop long enough that the server never reached
+`listen()`, so the work is spread one sheet per tick.
+
 **A fallback must not look like a fault.** Rename a drawing in Bonsai without
 saving: the SVG is moved and every layout relinked at once, so the layout names
 a file the saved model has never heard of. Matching view-titles by file alone

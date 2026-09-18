@@ -174,6 +174,13 @@ titleblocks". What bites:
   not survive a merge (IfcOpenShell#9468). A drawing falls back to its GlobalId,
   for when the layout and the saved model disagree on the file - an unsaved
   rename in Blender moves the SVG and relinks the layout immediately.
+- **A drawing's size comes from the drawing, not the layout.** The layout keeps
+  a stale box until Bonsai reflows the sheet, and drawing into it stretches the
+  image (`resizeToDrawings`, mirroring `update_sheet_drawing_sizes` - the
+  view-title tracks the bottom edge). Never write those sizes back: Bonsai owns
+  them.
+- **Startup work goes through `runSoon`,** one sheet per tick. `startLayoutWatcher`
+  runs before `httpServer.listen`, so anything synchronous there delays serving.
 - **Never re-render a filled title as raw.** A title that cannot be matched to
   values keeps the image it has (`isUnmatched`); replacing it with
   `{{placeholders}}` reads as a fault. `CACHE_FORMAT` in `ifcValues.ts` must be

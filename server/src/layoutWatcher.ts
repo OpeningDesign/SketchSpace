@@ -25,7 +25,7 @@ import {
 } from "./layoutImport.js";
 import { parseLayout } from "./bonsaiLayout.js";
 import { onLayoutValuesChanged, primeLayoutValues } from "./ifcValues.js";
-import { rebindLayoutPath, syncPageWithLayout } from "./layoutSync.js";
+import { drawingSizesChanged, rebindLayoutPath, syncPageWithLayout } from "./layoutSync.js";
 import { applyUpdate, getElements } from "./store.js";
 
 import type { SyncElement } from "./types.js";
@@ -476,6 +476,23 @@ const reconcileDirectory = (
   }
 };
 
+/** Run jobs one per tick, so a long queue never blocks serving. */
+const runSoon = (jobs: (() => void)[]): void => {
+  const next = () => {
+    const job = jobs.shift();
+    if (!job) {
+      return;
+    }
+    try {
+      job();
+    } catch (error) {
+      console.error("[sketchspace] deferred layout work failed:", error);
+    }
+    setImmediate(next);
+  };
+  setImmediate(next);
+};
+
 /** Whether a page carries anything the user drew - which exists nowhere else. */
 const hasOwnWork = (pageId: string): boolean =>
   getElements(pageId).some(
@@ -596,9 +613,23 @@ const refreshWatches = (
   // filled: boards imported before values existed, while the server was down,
   // or by a CLI that could only use what was already cached. Those with values
   // on hand are rendered now; the rest are notified once their IFC is read.
-  for (const layoutPath of primeLayoutValues(adopted)) {
-    resyncLayoutAssets(layoutPath, broadcast, "template values applied", true);
+  // A drawing regenerated at a different size while we were not running leaves
+  // the layout's box stale, and the drawing stretched into it. Cheap to check,
+  // so it is checked on adoption rather than waiting for the next change.
+  const resized = new Set(adopted.filter((layoutPath) => drawingSizesChanged(layoutPath)));
+  const jobs: (() => void)[] = [];
+  for (const layoutPath of resized) {
+    jobs.push(() => resyncLayoutAssets(layoutPath, broadcast, "drawing resized"));
   }
+  for (const layoutPath of primeLayoutValues(adopted)) {
+    if (!resized.has(layoutPath)) {
+      jobs.push(() => resyncLayoutAssets(layoutPath, broadcast, "template values applied", true));
+    }
+  }
+  // One sheet per tick. At startup this is every sheet of every board, and a
+  // full re-sync re-reads and re-hashes every drawing on a sheet - done in one
+  // go it held the event loop long enough that the server never got to listen.
+  runSoon(jobs);
 };
 
 export const startLayoutWatcher = (
