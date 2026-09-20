@@ -381,8 +381,12 @@ before. The Docker image does not include one.
 **Live values need three things:**
 
 - **A Bonsai that can answer.** It needs the `sheets` web handler and the
-  *Keep Web Connection* preference. Both are in OpeningDesign's Bonsai build;
-  neither is upstream yet.
+  *Keep Web Connection* preference —
+  [IfcOpenShell#9555](https://github.com/IfcOpenShell/IfcOpenShell/pull/9555),
+  which also carries the editing requests below. It is worth taking
+  [IfcOpenShell#9557](https://github.com/IfcOpenShell/IfcOpenShell/pull/9557)
+  with it, which recovers a model reopened after a rename that was never saved.
+  Both are in OpeningDesign's Bonsai build; neither is upstream yet.
 - **Blender connected to Bonsai's web server.** In Bonsai's preferences, under
   *Other → Web UI*, turn on **Keep Web Connection**. Blender then connects in
   the background whenever it runs - starting Bonsai's web server if needed,
@@ -411,6 +415,17 @@ revision table is read from the project repository's tags. Those are shown with
 the reason Bonsai gives rather than left out. With no Blender connected the
 values still show — they come from the saved file — and the panel says to open
 the model to change them.
+
+**A rename has to be saved in Blender to stick.** Bonsai renames the files the
+moment you save from here — the layout, the built sheet, a drawing's SVG — but
+the new names only reach the `.ifc` when someone saves the model. Reopen it
+without having saved and it names files that are no longer there: Open Layout
+fails and Create Sheets skips the sheet. That is worth knowing here in
+particular, because the person renaming is in a browser and the person who can
+save is in Blender.
+[IfcOpenShell#9557](https://github.com/IfcOpenShell/IfcOpenShell/pull/9557)
+recovers from it by putting the files back under the names the reopened model
+uses; without that patch the fix is to rename them back by hand.
 
 ### Sheet identity is content, not filename
 
