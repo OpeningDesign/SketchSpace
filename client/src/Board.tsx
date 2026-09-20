@@ -1,6 +1,7 @@
 import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
 import { useEffect, useMemo, useState } from "react";
 
+import { BonsaiPanel } from "./BonsaiPanel";
 import { getSocket } from "./socket";
 import { TabStrip } from "./TabStrip";
 import { useCollab } from "./useCollab";
@@ -120,6 +121,8 @@ export const Board = ({ boardId, initialPageId, onExit }: Props) => {
           Excalidraw's help button, so the layout write is visible where the
           drawing is without taking up chrome.
         */}
+        <BonsaiPanel excalidrawAPI={collab.excalidrawAPI as never} />
+
         {hasBonsaiPlacements && (
           <span
             className="board__sync"

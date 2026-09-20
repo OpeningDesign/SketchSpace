@@ -39,6 +39,32 @@ export const renderTemplate = (svg: string, data: TemplateData): string =>
     : svg;
 
 /**
+ * The variables a template fills in, in the order they appear.
+ *
+ * What a panel offers to edit: the fields this sheet actually shows, rather than
+ * every attribute of the document behind it. Sections (`{{#revisions}}`) and
+ * what they contain are left out - they are a table built from the repository's
+ * tags, not a value anyone types.
+ */
+export const placeholdersIn = (svg: string): string[] => {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  let depth = 0;
+  for (const [, sigil, raw] of svg.matchAll(/\{\{([{&#^/]?)\s*([^}]*?)\s*\}?\}\}/g)) {
+    const name = raw!.trim();
+    if (sigil === "#" || sigil === "^") {
+      depth++;
+    } else if (sigil === "/") {
+      depth = Math.max(0, depth - 1);
+    } else if (depth === 0 && name && !name.startsWith("!") && !seen.has(name)) {
+      seen.add(name);
+      names.push(name);
+    }
+  }
+  return names;
+};
+
+/**
  * Point a titleblock's north arrows, as `SheetBuilder.build_titleblock` does:
  * any `<g data-type="grid-north">` or `"true-north"` gets its transform
  * replaced with the model's rotation.

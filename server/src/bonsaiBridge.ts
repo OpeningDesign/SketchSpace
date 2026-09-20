@@ -16,8 +16,10 @@
  * alone for a while. The server binds to 127.0.0.1: this only ever reaches a
  * Blender on the same machine as SketchSpace.
  *
- * This is the read half of the bridge. Editing values from SketchSpace will send
- * requests the same way - to Bonsai, never to the file (NOTES.md).
+ * Edits go back the same way (`askToSetValues`) - to Bonsai, never to the file.
+ * Blender holds the model in memory, so a write to the `.ifc` would be invisible
+ * to it and lost on its next save, and renaming a sheet or drawing moves files
+ * and relinks layouts, which only Bonsai does.
  */
 import { randomUUID } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
@@ -201,6 +203,126 @@ const connect = (port: number) => {
     // A model never saved has no path to match layouts against.
     setLiveValues(sourceOf(port, blenderId), values.ifc ? values : null);
   });
+
+  socket.on("sheet_edit_result", (message: unknown) => {
+    const { blenderId, data } = (message ?? {}) as { blenderId?: unknown; data?: unknown };
+    const answer = (data as { edit_result?: EditResult } | undefined)?.edit_result;
+    if (typeof blenderId !== "string" || !answer) {
+      return;
+    }
+    const blender = connection.blenders.get(blenderId);
+    if (blender) {
+      blender.lastAnswer = Date.now();
+      blender.unanswered = 0;
+    }
+    settle(answer);
+  });
+};
+
+type EditResult = {
+  requestId?: string;
+  ok?: boolean;
+  error?: string;
+  fields?: EditableField[];
+  changed?: string[];
+  /** Where the sheet's layout is after the edit; it moves when a sheet is renamed. */
+  layout?: string;
+  kind?: string;
+};
+
+/** One field of a view-title or titleblock, as Bonsai reports it. */
+export type EditableField = {
+  name: string;
+  value: string;
+  editable: boolean;
+  /** Why not, when it cannot be edited - shown as it is given. */
+  reason?: string;
+};
+
+/**
+ * A Blender that has been asked something and has not answered yet.
+ *
+ * Every other message here is state being broadcast; these are replies to one
+ * caller, matched by the id the request carried. A Blender busy in a modal
+ * operator answers nothing at all, so a request that is never answered has to
+ * end by itself rather than leave someone waiting on a spinner.
+ */
+const REQUEST_TIMEOUT_MS = 10_000;
+const pending = new Map<string, { settle: (result: EditResult) => void; timer: NodeJS.Timeout }>();
+
+const settle = (answer: EditResult) => {
+  const waiting = answer.requestId ? pending.get(answer.requestId) : undefined;
+  if (waiting) {
+    pending.delete(answer.requestId!);
+    clearTimeout(waiting.timer);
+    waiting.settle(answer);
+  }
+};
+
+const ask = (source: string, operator: Record<string, unknown>): Promise<EditResult> => {
+  const split = source.indexOf("/");
+  const port = Number(source.slice(0, split));
+  const blenderId = source.slice(split + 1);
+  const connection = connections.get(port);
+  if (!connection?.socket.connected || !connection.blenders.has(blenderId)) {
+    return Promise.reject(new Error("Blender is no longer connected"));
+  }
+
+  const requestId = randomUUID();
+  return new Promise<EditResult>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pending.delete(requestId);
+      reject(new Error("Blender did not answer - it may be busy"));
+    }, REQUEST_TIMEOUT_MS);
+    timer.unref();
+    pending.set(requestId, {
+      timer,
+      settle: (answer) =>
+        answer.ok === false
+          ? reject(new Error(answer.error || "Bonsai refused the edit"))
+          : resolve(answer),
+    });
+    connection.socket.emit("web_operator", {
+      blenderId,
+      sourcePage: "sheets",
+      operator: { ...operator, requestId },
+    });
+  });
+};
+
+/**
+ * What a view's template fields hold, and which of them Bonsai can write.
+ *
+ * `fields` are the placeholders the template actually uses, so the answer covers
+ * what is on the sheet rather than every attribute of the entity behind it.
+ * Editability is Bonsai's to decide - it owns the operations that would apply a
+ * change, and deciding here would drift from what it accepts.
+ */
+export const askEditableFields = async (
+  source: string,
+  layout: string,
+  target: Record<string, unknown>,
+  fields: string[],
+): Promise<EditableField[]> => {
+  const answer = await ask(source, { type: "getEditableFields", layout, target, fields });
+  return answer.fields ?? [];
+};
+
+/**
+ * Apply values to the model Blender has open.
+ *
+ * Answers with the fields that changed and where the sheet's layout is now:
+ * renaming a sheet moves it, so the path the caller asked about is already
+ * gone, and only Bonsai knows the new one without going looking.
+ */
+export const askToSetValues = async (
+  source: string,
+  layout: string,
+  target: Record<string, unknown>,
+  values: Record<string, string>,
+): Promise<{ changed: string[]; layout: string }> => {
+  const answer = await ask(source, { type: "setTemplateValue", layout, target, values });
+  return { changed: answer.changed ?? [], layout: answer.layout || layout };
 };
 
 const poll = () => {

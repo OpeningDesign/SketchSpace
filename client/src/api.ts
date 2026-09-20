@@ -1,5 +1,28 @@
 import type { Board } from "./types";
 
+/** Which placement an edit is about, taken from the element's customData. */
+export type BonsaiRef = {
+  layout: string;
+  groupKey: string;
+  kind?: string;
+  globalId?: string | null;
+};
+
+export type EditableField = {
+  name: string;
+  value: string;
+  editable: boolean;
+  reason?: string;
+};
+
+export type ViewFields = {
+  sheet: string;
+  view: string;
+  connected: boolean;
+  fields: EditableField[];
+  note?: string;
+};
+
 const json = async <T,>(res: Response): Promise<T> => {
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -50,6 +73,22 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(file),
     }).then((r) => json(r)),
+
+  /** The template fields behind a selected placement - see server/bonsaiEdit.ts. */
+  bonsaiFields: (ref: BonsaiRef) =>
+    fetch("/api/bonsai/fields", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(ref),
+    }).then((r) => json<ViewFields>(r)),
+
+  /** Type those values back into the model Blender has open. */
+  setBonsaiValues: (ref: BonsaiRef, values: Record<string, string>) =>
+    fetch("/api/bonsai/values", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...ref, values }),
+    }).then((r) => json<{ changed: string[]; layout: string }>(r)),
 
   fetchFiles: (boardId: string, ids: string[]) =>
     fetch(

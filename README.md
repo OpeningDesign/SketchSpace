@@ -392,8 +392,25 @@ before. The Docker image does not include one.
   listens on `127.0.0.1`. SketchSpace finds it through the `running_pid.json`
   file Bonsai writes, re-read every 10 seconds.
 
-Editing these values *from* SketchSpace will go through the same connection,
-never the file — see the roadmap in NOTES.md.
+### Editing those values
+
+Select a drawing's title or a sheet's titleblock and a small panel appears with
+the fields its template fills in — a drawing's name and view number, a sheet's
+number, name and revision. Type a value, press Enter or **Save to Bonsai**, and
+it goes to the Blender holding that model, which does the rename properly: a
+renamed sheet takes its layout and built sheet with it, a renamed drawing its
+SVG and every layout placing it. The tab then updates itself the way it does for
+any other change made in Bonsai.
+
+Nothing is written to the `.ifc` or to the layout from here. Blender keeps the
+model in memory, so a write to the file would be invisible to it and lost the
+next time it saves.
+
+Some fields cannot be typed: a drawing's scale comes from its camera, and the
+revision table is read from the project repository's tags. Those are shown with
+the reason Bonsai gives rather than left out. With no Blender connected the
+values still show — they come from the saved file — and the panel says to open
+the model to change them.
 
 ### Sheet identity is content, not filename
 

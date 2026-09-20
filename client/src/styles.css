@@ -355,3 +355,87 @@ button:disabled {
 .board__users {
   margin-left: auto;
 }
+
+/*
+  Editing a view-title or titleblock. Sits over the canvas on the right, clear
+  of the editor's own island on the left and of the zoom controls below it.
+*/
+.viewedit {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 6;
+  width: 17rem;
+  max-height: calc(100% - 6rem);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 12%);
+  font-size: 13px;
+}
+
+.viewedit__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.viewedit__head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.viewedit__close {
+  flex: none;
+  padding: 0 4px;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.viewedit__sheet,
+.viewedit__note,
+.viewedit__status {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.viewedit__note {
+  margin: 0;
+}
+
+.viewedit__field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.viewedit__field > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.viewedit__field input {
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+.viewedit__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.viewedit__foot button {
+  padding: 6px 10px;
+  font-size: 13px;
+}

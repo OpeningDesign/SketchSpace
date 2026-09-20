@@ -35,7 +35,9 @@ import {
 } from "./db.js";
 import { flushLayoutAutosaves, pushBoardToLayouts } from "./layoutWriter.js";
 import { startBonsaiBridge } from "./bonsaiBridge.js";
+import { fieldsFor, setValues, type ElementRef } from "./bonsaiEdit.js";
 import { enableIfcExtraction } from "./ifcValues.js";
+import { findBoardForLayoutsDir } from "./layoutImport.js";
 import { startLayoutWatcher } from "./layoutWatcher.js";
 import { flushAll } from "./store.js";
 
@@ -227,6 +229,70 @@ app.post<{ boardId: string }>(
       res.status(500).json({ error: (error as Error).message });
     }
   },
+);
+
+/**
+ * The template fields behind a selected placement, and typing them back.
+ *
+ * The board element says which layout and which group in it; the rest is
+ * resolved from the layout file, so the client never names an IFC entity. Only
+ * a layout in a folder some board was imported from is accepted - a request
+ * naming any other file is refused rather than read. By folder rather than by
+ * file, because renaming a sheet renames its layout: the page still names the
+ * old one until the watcher catches up, and the very next question is about
+ * the new one.
+ *
+ * Edits go to the Blender holding that model, never to the file (see
+ * `bonsaiEdit.ts`). What changes on disk comes back through the layout watcher.
+ */
+const refFromBody = (body: unknown): ElementRef | null => {
+  const { layout, groupKey, kind, globalId } = (body ?? {}) as Record<string, unknown>;
+  if (typeof layout !== "string" || typeof groupKey !== "string") {
+    return null;
+  }
+  return {
+    layout,
+    groupKey,
+    kind: typeof kind === "string" ? kind : undefined,
+    globalId: typeof globalId === "string" ? globalId : null,
+  };
+};
+
+const withRef = (
+  handler: (ref: ElementRef, req: express.Request) => Promise<unknown>,
+) => async (req: express.Request, res: express.Response) => {
+  const ref = refFromBody(req.body);
+  if (!ref) {
+    res.status(400).json({ error: "a layout and a group are needed" });
+    return;
+  }
+  if (!findBoardForLayoutsDir(path.dirname(ref.layout))) {
+    res.status(404).json({ error: "that sheet is not open in SketchSpace" });
+    return;
+  }
+  try {
+    res.json(await handler(ref, req));
+  } catch (error) {
+    res.status(502).json({ error: (error as Error).message });
+  }
+};
+
+app.post("/api/bonsai/fields", requireAuth, withRef((ref) => fieldsFor(ref)));
+
+app.post(
+  "/api/bonsai/values",
+  requireAuth,
+  withRef(async (ref, req) => {
+    const values = (req.body as { values?: unknown }).values;
+    if (!values || typeof values !== "object") {
+      throw new Error("no values were given");
+    }
+    const text: Record<string, string> = {};
+    for (const [name, value] of Object.entries(values as Record<string, unknown>)) {
+      text[name] = String(value ?? "");
+    }
+    return setValues(ref, text);
+  }),
 );
 
 /* --------------------------------- client -------------------------------- */

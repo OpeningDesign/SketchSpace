@@ -484,18 +484,30 @@ const toLayoutValues = (
  * The most recent answer wins when more than one does.
  */
 const liveValuesFor = (dirKey: string, target: string) => {
-  let best: { extract: IfcExtract; sheet: SheetExtract; receivedAt: number } | undefined;
-  for (const { extract, receivedAt } of live.values()) {
+  let best:
+    | { source: string; extract: IfcExtract; sheet: SheetExtract; receivedAt: number }
+    | undefined;
+  for (const [source, { extract, receivedAt }] of live) {
     if (normalisePath(path.dirname(extract.ifc)) !== dirKey) {
       continue;
     }
     const sheet = extract.sheets.find((s) => normalisePath(s.layout) === target);
     if (sheet && (!best || receivedAt > best.receivedAt)) {
-      best = { extract, sheet, receivedAt };
+      best = { source, extract, sheet, receivedAt };
     }
   }
   return best;
 };
+
+/**
+ * Which connected Blender has this layout's model open, or null.
+ *
+ * An edit is sent to that Blender and nowhere else: the model it holds in memory
+ * is the one the values came from, and writing to the saved file instead would
+ * be invisible to it and lost on its next save (NOTES.md).
+ */
+export const liveSourceForLayout = (layoutPath: string): string | null =>
+  liveValuesFor(normalisePath(projectDirOf(layoutPath)), normalisePath(layoutPath))?.source ?? null;
 
 /**
  * Template values for a layout, or null if none are available yet.

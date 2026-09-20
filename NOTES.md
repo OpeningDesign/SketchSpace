@@ -166,6 +166,47 @@ modified time and size, and a layout renders with raw placeholders until values
 arrive. CLIs never extract: a script importing a board would otherwise either
 wait for the read or exit and throw it away. They use the server's cache.
 
+**Whoever can do the thing decides whether it can be done.** A panel offering
+template fields has to know which of them can be written, and it is tempting to
+answer that where the panel is - a short list, easy to read. But the operations
+that apply an edit are Bonsai's, and a list here would slowly stop matching
+them. So the question is asked (`getEditableFields`) rather than answered:
+Bonsai says what each field holds, whether it can take a new value, and why not
+when it cannot - and that reason is shown as given. Which fields appear is the
+other half, and that is SketchSpace's to answer, because it is a property of the
+template on the sheet, not of the model: `placeholdersIn` reads the `{{tags}}`
+the titleblock or view-title actually uses, so the panel offers what is printed
+rather than every attribute of the document behind it.
+
+**A saved edit reads back from the model, not from the box.** Bonsai adjusts what
+it is given - a renamed sheet renames files, a reference may take the name
+instead of the drawing - so after a save the panel asks again rather than
+keeping what was typed. The same reason the sheet itself re-renders from the
+bridge: the model is what is true.
+
+**An edit that moves the thing it edited has to say where it went.** Renaming a
+sheet renames its layout, so a moment after the answer arrives the path the
+question named is gone. Asking again by that path failed, the fields stayed as
+they were, and the boxes fell back to the old values - the edit looked as though
+it had been rejected when it had in fact worked. `set_template_values` now
+answers with the layout's path afterwards and the panel follows the sheet there.
+The route's guard had the same problem in reverse, and checks the layouts folder
+rather than the file: the page still names the old one until the watcher catches
+up. Anything that identifies a sheet by its path has this window in it.
+
+**A locked element is never selected.** Bonsai locks the titleblock
+(`sodipodi:insensitive`), and the editor answers a click on a locked element by
+setting `activeLockedId` - the state behind its padlock - and nothing else. A
+panel watching `selectedElementIds` therefore never opens on the one view that
+is on every sheet. It watches both. Locking is about not dragging the thing, not
+about its values.
+
+**A panel that acts on the scene cannot be driven by the scene's selection.**
+Saving replaced the page, the editor dropped the locked element's hold, and the
+panel closed at the moment it was used - the better the edit worked, the faster
+it vanished. It holds its own anchor now, following the group rather than the
+selection or the path, and closes when told to.
+
 **A drawing is the size it says it is.** Change a camera's width and regenerate
 the drawing, and the new SVG goes into the old box in the layout: Bonsai only
 rewrites those numbers when it reflows the sheet, on Open Layout or Create
@@ -501,12 +542,16 @@ is why the bridge is the long-term source for those values, not the file:
    `SheetBuilder.get_template_values`, in the same shape as the file reader,
    and those values win while Blender is connected. Lives on Ryan's Bonsai
    build branch; still to be offered upstream.
-3. **Edits go to Bonsai, never the file.** Blender holds the model in memory:
-   a write to the `.ifc` is invisible to it and lost on its next save. And some
-   of these fields have side effects only Bonsai performs - renaming a sheet
-   renames its layout, renaming a drawing its SVG, the scale is tied to the
-   camera - so the handler must call Bonsai's own operations, which also makes
-   them undoable in Blender. Fields are editable only while the bridge is up.
+3. **Done - edits go to Bonsai, never the file** (`bonsaiEdit.ts`). Select a
+   view-title or a titleblock and its template's fields are boxes to type in;
+   saving sends them to the Blender holding that model, which calls its own
+   operations - `rename_sheet`, `update_drawing_name`, `rename_reference` - so
+   the layout, the SVG and the model move together. A write to the `.ifc` would
+   be invisible to Blender and lost on its next save. Fields are shown but not
+   offered when no Blender is connected, and a field Bonsai cannot write says
+   why. Still to come: the fields that are not document attributes at all (a
+   scale is the camera's), and Bonsai's undo stack - a web request is not an
+   operator, so `ed.undo_push` does not cover it.
 
 ### Git as the issuance log
 

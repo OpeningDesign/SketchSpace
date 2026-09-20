@@ -174,6 +174,15 @@ titleblocks". What bites:
   not survive a merge (IfcOpenShell#9468). A drawing falls back to its GlobalId,
   for when the layout and the saved model disagree on the file - an unsaved
   rename in Blender moves the SVG and relinks the layout immediately.
+- **The edit panel holds its own anchor, not the editor's selection.** A locked
+  element (the titleblock) is never selected - only `activeLockedId` - and a save
+  replaces the scene, which drops that. It follows `groupKey`, and re-anchors to
+  the layout path Bonsai answers with, since renaming a sheet moves its layout.
+- **Template values are edited through Bonsai, never written.** `bonsaiEdit.ts`
+  resolves a selected element to a view and asks the Blender holding that model
+  (`getEditableFields`, `setTemplateValue`); nothing here writes a value into
+  the `.ifc` or the layout. Which fields appear is `placeholdersIn` on the
+  template; which can be written is Bonsai's answer, never a list kept here.
 - **A drawing's size comes from the drawing, not the layout.** The layout keeps
   a stale box until Bonsai reflows the sheet, and drawing into it stretches the
   image (`resizeToDrawings`, mirroring `update_sheet_drawing_sizes` - the
