@@ -7,8 +7,9 @@
  * to be renamed; the sheet then updates itself the way any other change in
  * Bonsai does. Nothing is written to the IFC or to the layout from here.
  *
- * Fields the model cannot take are shown all the same, with the reason Bonsai
- * gives: a scale comes from the drawing's camera, not from text. With no Blender
+ * Fields the model cannot take are shown all the same, as text rather than a
+ * box, with the reason Bonsai gives: a scale comes from the drawing's camera,
+ * not from text. With no Blender
  * connected the values are still on the sheet - they came from the saved file -
  * so the panel says where to go rather than disappearing.
  */
@@ -243,21 +244,48 @@ export const BonsaiPanel = ({ excalidrawAPI }: Props) => {
 
       {view?.note && <p className="viewedit__note">{view.note}</p>}
 
-      {view?.fields.map((field) => (
-        <label key={field.name} className="viewedit__field">
-          <span title={field.editable ? undefined : field.reason}>
-            {field.name}
-            {!field.editable && " ·"}
-          </span>
-          <input
-            value={edited[field.name] ?? field.value}
-            disabled={!field.editable || saving}
-            title={field.editable ? undefined : field.reason}
-            onChange={(e) => setEdited((v) => ({ ...v, [field.name]: e.target.value }))}
-            onKeyDown={(e) => e.key === "Enter" && void save()}
-          />
-        </label>
-      ))}
+      {view?.fields.map((field) =>
+        !field.editable ? (
+          // Shown as text, not as a box that refuses typing: what cannot be
+          // edited here should not look as though it can. The reason is shown
+          // too, not left in a tooltip - it says where the value does come from.
+          <div key={field.name} className="viewedit__field viewedit__field--readonly">
+            <span>{field.name}</span>
+            <div className="viewedit__value">
+              {(field.options?.find((o) => o.value === field.value)?.label ?? field.value) || (
+                <span className="viewedit__empty">—</span>
+              )}
+            </div>
+            {field.reason && <small className="viewedit__reason">{field.reason}</small>}
+          </div>
+        ) : (
+          <label key={field.name} className="viewedit__field">
+            <span>{field.name}</span>
+            {field.options ? (
+              // Which site or building the sheet is about. Its fields below show
+              // the one picked once it is saved, not while it is only picked.
+              <select
+                value={edited[field.name] ?? field.value}
+                disabled={saving}
+                onChange={(e) => setEdited((v) => ({ ...v, [field.name]: e.target.value }))}
+              >
+                {field.options.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={edited[field.name] ?? field.value}
+                disabled={saving}
+                onChange={(e) => setEdited((v) => ({ ...v, [field.name]: e.target.value }))}
+                onKeyDown={(e) => e.key === "Enter" && void save()}
+              />
+            )}
+          </label>
+        ),
+      )}
 
       <div className="viewedit__foot">
         <button disabled={changed.length === 0 || saving} onClick={() => void save()}>

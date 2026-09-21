@@ -1,11 +1,44 @@
 import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
 import { useEffect, useMemo, useState } from "react";
 
+import { api } from "./api";
 import { BonsaiPanel } from "./BonsaiPanel";
 import { getSocket } from "./socket";
 import { TabStrip } from "./TabStrip";
 import { useCollab } from "./useCollab";
 import { useViewLink } from "./useViewLink";
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+const answers = () =>
+  fetch("/api/session", { cache: "no-store" }).then(
+    (r) => r.ok,
+    () => false,
+  );
+
+/**
+ * Wait for a restarted server to come back, then reload.
+ *
+ * The old server is still answering for a moment after it agrees to restart,
+ * so first wait for it to go, then for the new one - reloading on the old one's
+ * last answer would load a page from a server about to disappear. Reloading
+ * rather than reconnecting also picks up a rebuilt client, which is usually
+ * why the server was restarted.
+ */
+const reloadWhenBack = async (): Promise<boolean> => {
+  const deadline = Date.now() + 90_000;
+  while (Date.now() < deadline && (await answers())) {
+    await sleep(300);
+  }
+  while (Date.now() < deadline) {
+    if (await answers()) {
+      window.location.reload();
+      return true;
+    }
+    await sleep(1000);
+  }
+  return false;
+};
 
 type Props = {
   boardId: string;
@@ -63,6 +96,43 @@ export const Board = ({ boardId, initialPageId, onExit }: Props) => {
     const t = setTimeout(() => setSavedAt(null), 4000);
     return () => clearTimeout(t);
   }, [savedAt]);
+
+  // Stopping or restarting the server is for everyone on it, so it is confirmed,
+  // and then the whole board is covered: nothing typed now would be kept.
+  const [serverState, setServerState] = useState<
+    "stopping" | "stopped" | "restarting" | "lost" | null
+  >(null);
+
+  const stopServer = async () => {
+    if (!window.confirm("Stop SketchSpace for everyone using it? Work so far is saved first.")) {
+      return;
+    }
+    setServerState("stopping");
+    try {
+      await api.stopServer();
+      setServerState("stopped");
+    } catch (error) {
+      setServerState(null);
+      window.alert((error as Error).message);
+    }
+  };
+
+  const restartServer = async () => {
+    if (!window.confirm("Restart SketchSpace for everyone using it? Work so far is saved first.")) {
+      return;
+    }
+    setServerState("restarting");
+    try {
+      await api.restartServer();
+    } catch (error) {
+      setServerState(null);
+      window.alert((error as Error).message);
+      return;
+    }
+    if (!(await reloadWhenBack())) {
+      setServerState("lost");
+    }
+  };
 
   const others = collab.users.filter(
     (u) => u.socketId !== getSocket().id,
@@ -163,9 +233,48 @@ export const Board = ({ boardId, initialPageId, onExit }: Props) => {
             {/* `allowSystemTheme` needs the host to own theme state; we don't. */}
             <MainMenu.DefaultItems.ToggleTheme allowSystemTheme={false} />
             <MainMenu.DefaultItems.ChangeCanvasBackground />
+            <MainMenu.Separator />
+            <MainMenu.Item onSelect={() => void restartServer()}>
+              Restart SketchSpace
+            </MainMenu.Item>
+            <MainMenu.Item onSelect={() => void stopServer()}>
+              Stop SketchSpace
+            </MainMenu.Item>
           </MainMenu>
         </Excalidraw>
       </div>
+
+      {serverState && (
+        <div className="serverstate" role="status">
+          <div className="serverstate__card">
+            {serverState === "stopping" && <p>Stopping SketchSpace…</p>}
+            {serverState === "restarting" && (
+              <p>Restarting SketchSpace… this page reloads when it is back, usually within 20 seconds.</p>
+            )}
+            {serverState === "stopped" && (
+              <>
+                <p>
+                  <strong>SketchSpace is stopped.</strong>
+                </p>
+                <p>
+                  Open a layout from Blender to start it again, or run <code>npm start</code>.
+                </p>
+              </>
+            )}
+            {serverState === "lost" && (
+              <>
+                <p>
+                  <strong>SketchSpace did not come back.</strong>
+                </p>
+                <p>
+                  Its output is in <code>server.log</code> in the data directory. Opening a layout
+                  from Blender starts it again.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   );

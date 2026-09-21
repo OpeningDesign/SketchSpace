@@ -14,7 +14,7 @@ data. This builds it the way `sheeter.py` does, and prints it as JSON:
         {
           "identification": "A01",
           "layout": "<absolute path of the sheet's LAYOUT reference>",
-          "values": { ...sheet.get_info(), as text... },
+          "values": { ...sheet.get_info(), its site and building, as text... },
           "placements": {
             "<absolute path of the placed drawing/document>": { ...view-title data... }
           },
@@ -88,6 +88,100 @@ def is_perspective(drawing):
         )
     except (AttributeError, IndexError, TypeError):
         return False
+
+
+# SheetBuilder's SPATIAL_ELEMENTS: {{Site...}} and {{Building...}} fields, the
+# class behind each prefix, and the attribute holding its postal address.
+SPATIAL_ELEMENTS = {"Site": ("IfcSite", "SiteAddress"), "Building": ("IfcBuilding", "BuildingAddress")}
+ELEMENT_ATTRIBUTES = ("Name", "Description")
+ADDRESS_ATTRIBUTES = ("AddressLines", "PostalBox", "Town", "Region", "PostalCode", "Country")
+
+
+def sheet_associations(sheet):
+    if sheet.file.schema == "IFC2X3":
+        return [r for r in sheet.file.by_type("IfcRelAssociatesDocument") if r.RelatingDocument == sheet]
+    return list(sheet.DocumentInfoForObjects or [])
+
+
+def containing(element, ifc_class):
+    parent = ifcopenshell.util.element.get_aggregate(element)
+    while parent is not None and not parent.is_a(ifc_class):
+        parent = ifcopenshell.util.element.get_aggregate(parent)
+    return parent
+
+
+def only(elements):
+    return elements[0] if len(elements) == 1 else None
+
+
+def top_level_sites(model):
+    sites = []
+    for site in model.by_type("IfcSite"):
+        parent = ifcopenshell.util.element.get_aggregate(site)
+        if parent is None or parent.is_a("IfcProject"):
+            sites.append(site)
+    return sites
+
+
+def buildings_in(model, site):
+    if site is None:
+        return [b for b in model.by_type("IfcBuilding") if not containing(b, "IfcBuilding")]
+    found, queue = [], [site]
+    while queue:
+        for part in ifcopenshell.util.element.get_parts(queue.pop()):
+            if part.is_a("IfcBuilding"):
+                found.append(part)
+            elif part.is_a("IfcSite"):
+                queue.append(part)
+    return found
+
+
+def sheet_spatial(sheet):
+    """SheetBuilder.get_sheet_spatial: what the sheet links to, else the only candidate.
+
+    Two links of one kind count as none (SheetBuilder.get_sheet_links): IFC keeps
+    them as a set, so taking the first would be a guess.
+    """
+    linked = {prefix: [] for prefix in SPATIAL_ELEMENTS}
+    for rel in sheet_associations(sheet):
+        for element in rel.RelatedObjects:
+            for prefix, (ifc_class, _) in SPATIAL_ELEMENTS.items():
+                if element.is_a(ifc_class) and element not in linked[prefix]:
+                    linked[prefix].append(element)
+    site, building = only(linked["Site"]), only(linked["Building"])
+    if site is None and building is not None:
+        site = containing(building, "IfcSite")
+    if site is None:
+        site = only(top_level_sites(sheet.file))
+    if building is None:
+        building = only(buildings_in(sheet.file, site))
+    return {"Site": site, "Building": building}
+
+
+def spatial_data(sheet):
+    """SheetBuilder.get_spatial_data. Unset values are empty, not "None" - Bonsai's choice."""
+
+    def get(entity, name):
+        return (getattr(entity, name, None) if entity else None) or ""
+
+    data = {}
+    for prefix, element in sheet_spatial(sheet).items():
+        address = get(element, SPATIAL_ELEMENTS[prefix][1]) or None
+        for name in ELEMENT_ATTRIBUTES:
+            data[prefix + name] = get(element, name)
+        for name in ADDRESS_ATTRIBUTES:
+            data[prefix + name] = get(address, name)
+        data[prefix + "AddressLines"] = ", ".join(get(address, "AddressLines"))
+        region = " ".join(p for p in (data[prefix + "Region"], data[prefix + "PostalCode"]) if p)
+        parts = (
+            data[prefix + "AddressLines"],
+            data[prefix + "PostalBox"],
+            data[prefix + "Town"],
+            region,
+            data[prefix + "Country"],
+        )
+        data[prefix + "Address"] = ", ".join(p for p in parts if p)
+    return data
 
 
 def north(getter, model):
@@ -173,7 +267,8 @@ def main(ifc_path):
                 "identification": text(getattr(sheet, "Identification", None)),
                 "layout": layout,
                 "drawings": by_drawing,
-                "values": as_text(sheet_info),
+                # SheetBuilder.get_titleblock_data
+                "values": as_text({**sheet_info, **spatial_data(sheet)}),
                 "placements": placements,
             }
         )

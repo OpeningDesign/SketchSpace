@@ -423,9 +423,26 @@ button:disabled {
   font-size: 12px;
 }
 
-.viewedit__field input {
+.viewedit__field input,
+.viewedit__field select {
   padding: 6px 8px;
   font-size: 13px;
+}
+
+/* Read-only: plain text on the panel, with no box around it to click into. */
+.viewedit__value {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.viewedit__empty,
+.viewedit__reason {
+  color: var(--muted);
+}
+
+.viewedit__reason {
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .viewedit__foot {
@@ -438,4 +455,33 @@ button:disabled {
 .viewedit__foot button {
   padding: 6px 10px;
   font-size: 13px;
+}
+
+/* Covers the board while the server is stopped or restarting. */
+.serverstate {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(0 0 0 / 0.35);
+}
+
+.serverstate__card {
+  max-width: 24rem;
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.serverstate__card p {
+  margin: 0 0 8px;
+}
+
+.serverstate__card p:last-child {
+  margin-bottom: 0;
 }

@@ -1,5 +1,6 @@
+import { spawn } from "node:child_process";
 import { createServer } from "node:http";
-import { existsSync } from "node:fs";
+import { existsSync, openSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -295,6 +296,44 @@ app.post(
   }),
 );
 
+/* --------------------------------- server -------------------------------- */
+
+/**
+ * Stopping and restarting from the app.
+ *
+ * Both go through `shutdown`, so pending layout writes and scenes are flushed
+ * first. Killing the process does not do that on Windows: `Stop-Process` and
+ * `process.kill` terminate it outright, and no signal handler runs.
+ *
+ * Anyone past the password can do this - there is one password, and everyone
+ * past it is trusted alike. The session cookie is SameSite=lax, so another site
+ * cannot post here on a visitor's behalf.
+ */
+const relaunchable = () => {
+  if (process.pid === 1) {
+    return "SketchSpace is the container's main process - restart the container instead.";
+  }
+  if (!/dist[\\/]server[\\/]index\.js$/.test(process.argv[1] ?? "")) {
+    return "SketchSpace is running in development mode - it restarts itself when its code changes.";
+  }
+  return null;
+};
+
+app.post("/api/server/stop", requireAuth, (_req, res) => {
+  res.json({ ok: true });
+  res.on("finish", () => shutdown("stop requested from the app"));
+});
+
+app.post("/api/server/restart", requireAuth, (_req, res) => {
+  const refusal = relaunchable();
+  if (refusal) {
+    res.status(409).json({ error: refusal });
+    return;
+  }
+  res.json({ ok: true });
+  res.on("finish", () => shutdown("restart requested from the app", { restart: true }));
+});
+
 /* --------------------------------- client -------------------------------- */
 
 if (existsSync(clientDir)) {
@@ -360,23 +399,50 @@ httpServer.listen(config.port, () => {
   console.log(`[sketchspace] data directory: ${path.resolve(config.dataDir)}`);
 });
 
+/**
+ * Start a new server the way this one was started, detached - after this one
+ * has let go of the port. It outlives this process, so its output goes to the
+ * same log `open-layout.mjs` uses rather than to a console that is going away.
+ */
+const relaunch = () => {
+  const log = openSync(path.join(config.dataDir, "server.log"), "a");
+  spawn(process.execPath, [...process.execArgv, ...process.argv.slice(1)], {
+    cwd: process.cwd(),
+    detached: true,
+    stdio: ["ignore", log, log],
+    windowsHide: true,
+  }).unref();
+  console.log(`[sketchspace] restarting - output continues in ${path.join(config.dataDir, "server.log")}`);
+};
+
 let shuttingDown = false;
-const shutdown = (signal: string) => {
+const shutdown = (signal: string, { restart = false } = {}) => {
   if (shuttingDown) {
     return;
   }
   shuttingDown = true;
-  console.log(`[sketchspace] ${signal} received, flushing scenes...`);
+  console.log(`[sketchspace] ${signal}, flushing scenes...`);
   stopLayoutWatcher();
   stopBonsaiBridge();
   stopIfcExtraction();
   flushLayoutAutosaves();
   flushAll();
+  let exited = false;
+  const exit = () => {
+    if (exited) {
+      return;
+    }
+    exited = true;
+    if (restart) {
+      relaunch();
+    }
+    process.exit(0);
+  };
   io.close(() => {
-    httpServer.close(() => process.exit(0));
+    httpServer.close(exit);
   });
   // Don't hang forever on a stuck socket.
-  setTimeout(() => process.exit(0), 5000).unref();
+  setTimeout(exit, 5000).unref();
 };
 
 process.on("SIGINT", () => shutdown("SIGINT"));

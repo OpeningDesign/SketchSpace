@@ -178,6 +178,51 @@ template on the sheet, not of the model: `placeholdersIn` reads the `{{tags}}`
 the titleblock or view-title actually uses, so the panel offers what is printed
 rather than every attribute of the document behind it.
 
+**A value that is not on the sheet goes into Bonsai first.** A project's address
+lives on its `IfcSite` or `IfcBuilding`, not on the sheet, so Bonsai's
+titleblock data did not include it. Adding it only to `ifc_values.py` would have shown an address here that
+Bonsai's built sheet leaves blank. It went into `SheetBuilder.get_titleblock_data`
+instead, which covers the build, the live bridge and editing in one place, and
+`ifc_values.py` copies it. Its unset parts are blank rather than `None`. That
+breaks the pystache rule above on purpose: "None, None" in an address looks like
+a fault, and both sides make the same choice, so they still agree. Bump
+`CACHE_FORMAT` in `ifcValues.ts` whenever the extract gains a field, or cached
+models go on showing raw placeholders until they are next saved.
+
+**Never number what IFC does not order.** The first design took "the first site
+with an address". A request for `{{Site1…}}` and `{{Building2…}}` fields was
+turned down for the same reason: `IfcRelAggregates.RelatedObjects` is a `SET`,
+so the only order available is file order, and a merge or re-save changes it.
+Adding a building would have shifted every number after it, silently, on every
+sheet. It also misreads what a titleblock is: one template serves every sheet,
+so it wants "this sheet's building", not a building by position. The sheet now
+names its site and building with an `IfcRelAssociatesDocument`. Where it names
+none and there is more than one candidate, the fields stay blank instead of
+guessing. A list for a cover sheet, `{{#buildings}}`, is still open (roadmap),
+and would sort by name, since a name is something a person can see and change.
+
+**A link field is a choice, and the rest of the protocol did not change.**
+`getEditableFields` answers `Site` and `Building` with `options`, and the panel
+draws a `<select>` for any field that has them. SketchSpace asks for the two
+only when the template uses a `Site…` or `Building…` placeholder, which is the
+same rule as for every other field: the template decides what is offered.
+`set_template_values` applies a link before any field in the same save, and
+resolves the fields against the new link before writing anything. So "link
+South Hall and set its town" is one all-or-nothing edit.
+
+**An edit from SketchSpace has to look like an edit made in Blender.** The web
+handler first called `set_template_values` directly, outside any Bonsai
+operator, and two things silently went missing. Bonsai refreshes its panels'
+cached data only after an IFC operator, so a Site picked here left Bonsai's
+Sheets panel showing the old one; a repaint only redrew the cache. And the edit
+was in no undo transaction, so Ctrl+Z skipped it and undid whatever came before.
+It now runs as an internal operator, `bim.edit_sheet_template_values`, which
+gives it both. The operator gets only edits that have already passed
+`check_template_values`: a refusal raised inside an operator reaches the caller
+as a whole traceback and still leaves an empty undo step. Redo could not be
+confirmed from a script. It failed there for Bonsai's own operators too, so the
+cause is the harness, not this path.
+
 **A saved edit reads back from the model, not from the box.** Bonsai adjusts what
 it is given - a renamed sheet renames files, a reference may take the name
 instead of the drawing - so after a save the panel asks again rather than
@@ -471,6 +516,18 @@ before building.
 
 ### Environment
 
+**On Windows, killing the server skips its shutdown.** `Stop-Process -Force`
+and `process.kill` both end the process outright. Node's SIGINT and SIGTERM
+handlers never run, so pending layout writes and dirty scenes are lost. For a
+long time the documented way to stop it was exactly that command. Stop and
+Restart are now menu items that go through `shutdown` itself. Restart relaunches
+with the same `execPath`, `execArgv` and `argv` once the port is closed, so
+`--env-file` and every setting carry over. It is refused under `tsx watch` and
+as PID 1, where relaunching would fight the watcher or end the container. The
+page waits for the old server to stop answering before waiting for the new one:
+reloading on the old one's last answer loads a page from a server about to
+disappear.
+
 **Keep the whole checkout out of Dropbox, not just the database.** The first
 symptom was SQLite - WAL holds `.db`, `.db-shm` and `.db-wal` open together, and a
 sync client locks them and syncs them out of step, giving "Device or resource
@@ -549,9 +606,10 @@ is why the bridge is the long-term source for those values, not the file:
    the layout, the SVG and the model move together. A write to the `.ifc` would
    be invisible to Blender and lost on its next save. Fields are shown but not
    offered when no Blender is connected, and a field Bonsai cannot write says
-   why. Still to come: the fields that are not document attributes at all (a
-   scale is the camera's), and Bonsai's undo stack - a web request is not an
-   operator, so `ed.undo_push` does not cover it.
+   why. Each save is one Bonsai operator, so it is one step in Blender's undo
+   history. The sheet's site and building, and their names and addresses, are
+   editable too. Still to come: fields that are not text at all (a scale is the
+   camera's).
 
 ### Git as the issuance log
 
@@ -573,6 +631,10 @@ downsample underlays at import, which is almost certainly the bigger win.
 
 ### Smaller things
 
+- **Site and building lists for cover sheets.** `{{#sites}}…{{/sites}}` and
+  `{{#buildings}}…{{/buildings}}` sections, sorted by name, with a `y` step per
+  row as the revisions table has. Goes into Bonsai's `get_titleblock_data`
+  first, like every other titleblock value.
 - **The watcher fires two sync passes per external edit.** Converges correctly,
   but does twice the work. Likely Windows `fs.watch` plus Dropbox touching the
   file.

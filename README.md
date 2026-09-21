@@ -64,11 +64,28 @@ After changing **client** code, rebuild and hard-reload the browser
 (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd>); no server restart is needed,
 since the server only serves static files from `dist/client`.
 
-### Stopping it
+### Stopping and restarting it
 
-`Ctrl+C` if it is in your terminal. Otherwise find it **by port** — the process
-command line is a relative path, so filtering on the word "sketchspace" matches
-nothing:
+From any board, open the main menu (☰) and choose **Restart SketchSpace** or
+**Stop SketchSpace**. Both save everything first: pending layout writes and
+every open page. Anyone signed in can use them, since everyone past the password
+is trusted alike, so both ask for confirmation.
+
+- **Restart** starts a new server the same way this one was started, then the
+  page reloads by itself once the new one answers. The reload also loads a
+  rebuilt client, so after `npm run build` this is the whole update. The new
+  server runs in the background with its output in `<dataDir>/server.log`, even
+  if the old one was started in a terminal. Restart is refused in development
+  mode (`npm run dev` restarts itself on changes) and in Docker (restart the
+  container).
+- **Stop** leaves it stopped. Opening a layout from Blender starts it again, or
+  run `npm start`.
+
+`Ctrl+C` in its terminal also shuts down cleanly. Killing the process does not:
+on Windows, `Stop-Process` ends it without running its shutdown, so anything
+not yet written is lost. Use it only when the server no longer answers. Find it
+**by port**, because the process command line is a relative path, so filtering
+on the word "sketchspace" matches nothing:
 
 ```powershell
 Get-NetTCPConnection -LocalPort 3000 -State Listen |
@@ -350,13 +367,47 @@ only when it builds a sheet. SketchSpace fills them the same way, so a tab reads
 | --- | --- | --- |
 | View-title of a drawing | `Name`, `Identification`, `Scale`, and every `Sheet…` attribute | The drawing's reference on the sheet; `EPset_Drawing.HumanScale` (or `NTS`). An unnamed drawing uses its file name. |
 | View-title of a schedule or reference | The same, less `Scale` | Its reference on the sheet. An unnamed one uses the document's name, or `Unnamed`. |
-| Titleblock | The sheet's attributes; the `revisions` table; north arrows | The sheet; git tags on the IFC's repository; the model's georeferencing |
+| Titleblock | The sheet's attributes; the project address; the `revisions` table; north arrows | The sheet; the site's address (below); git tags on the IFC's repository; the model's georeferencing |
 
 This follows Bonsai's `sheeter.py` field for field, down to its quirks: an
 unset attribute prints as `None`, as it does on the built sheet. The revisions
 table mirrors Bonsai's git-tag feature — oldest tag at the bottom, dated by the
 tagged commit, the first line of its message, the tagger's initials — and is
 read with git directly, so it appears whichever Bonsai build made the sheet.
+
+**The sheet's site and building.** IFC gives a project no address of its own;
+it belongs to a site or a building, and a model can have several of each. So
+each sheet says which site and building it is about, and its titleblock shows
+theirs. One titleblock template serves every sheet.
+
+| Placeholder | From |
+| --- | --- |
+| `{{SiteName}}`, `{{SiteDescription}}` | The sheet's site |
+| `{{SiteAddress}}` | The site's whole address on one line |
+| `{{SiteAddressLines}}`, `{{SitePostalBox}}`, `{{SiteTown}}`, `{{SiteRegion}}`, `{{SitePostalCode}}`, `{{SiteCountry}}` | The parts of that address |
+| `{{BuildingName}}`, `{{BuildingDescription}}`, `{{BuildingAddress}}`, `{{BuildingAddressLines}}`, … `{{BuildingCountry}}` | The same, for the sheet's building |
+
+A sheet is linked to its site and building in the model itself, by an
+`IfcRelAssociatesDocument` from the sheet to each one. That is ordinary IFC:
+it survives merges and re-saves, and goes when the sheet does. Set the links
+from SketchSpace's panel (below), or in Bonsai: select the sheet under
+**Sheets**, then pick from the **Site** and **Building** dropdowns beneath its
+buttons. A sheet with no link uses whatever has a single answer:
+
+- **Site:** the linked building's site; otherwise the model's only top-level
+  site. The lots of a site complex don't count against it.
+- **Building:** the only building on the sheet's site, or in the model.
+
+Where there are several to choose from and the sheet has no link, those fields
+are **blank**. The alternative is guessing, and showing one building's address
+on another building's sheet. A sheet linked to two buildings counts as linked
+to none for the same reason. Bonsai's generic *Documents* panel can create that
+by assigning a second one, and IFC keeps the links in no order, so neither is
+"first". Both lists then read "2 buildings linked - pick one", and picking any
+entry replaces both. Each element shows its own address, so a Revit
+export with the address on the building fills `{{BuildingAddress}}`, not
+`{{SiteAddress}}`. An unset value is blank rather than `None`, on Bonsai's
+built sheet too.
 
 **Where the values come from.** Two places, in order:
 
@@ -408,11 +459,30 @@ any other change made in Bonsai.
 
 Nothing is written to the `.ifc` or to the layout from here. Blender keeps the
 model in memory, so a write to the file would be invisible to it and lost the
-next time it saves.
+next time it saves. Each save from here is one step in Blender's undo history,
+like an edit made in Blender itself, so **Ctrl+Z in Blender undoes it**. An
+edit Bonsai refuses leaves no undo step.
 
-Some fields cannot be typed: a drawing's scale comes from its camera, and the
-revision table is read from the project repository's tags. Those are shown with
-the reason Bonsai gives rather than left out. With no Blender connected the
+A titleblock that shows site or building fields also gets **Site** and
+**Building** lists at the top of the panel. They set which ones the sheet is
+linked to. The first entry, *Automatic*, removes the link and says what the
+sheet would show without it. Change one and save, and the fields below refill
+with the new site or building.
+
+The names, descriptions and address parts are editable too. An edit goes to the
+sheet's site or building, so it shows on every sheet about the same one.
+Renaming a site or building renames its Blender object too, as Bonsai's own
+attribute panel does. One with no address gets one. Several address lines are
+shown and edited as one line. Clearing every part removes the address, because
+IFC does not allow an empty one. A site and a building that share one address
+object share the edit as well. A field with no site or building behind it is
+refused, with a message saying to pick one.
+
+Some fields cannot be typed: a drawing's scale comes from its camera, the
+revision table is read from the project repository's tags, and `SiteAddress`
+and `BuildingAddress` are built from their parts. Those are shown as plain
+text rather than a box, with the reason Bonsai gives underneath, instead of
+being left out. With no Blender connected the
 values still show — they come from the saved file — and the panel says to open
 the model to change them.
 

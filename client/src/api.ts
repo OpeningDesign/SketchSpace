@@ -13,6 +13,8 @@ export type EditableField = {
   value: string;
   editable: boolean;
   reason?: string;
+  /** A choice rather than text: the values it can take, with "" for none. */
+  options?: { value: string; label: string }[];
 };
 
 export type ViewFields = {
@@ -43,6 +45,10 @@ export const api = {
     }).then((r) => json<{ ok: true }>(r)),
 
   logout: () => fetch("/api/logout", { method: "POST" }).then((r) => json(r)),
+
+  stopServer: () => fetch("/api/server/stop", { method: "POST" }).then((r) => json(r)),
+
+  restartServer: () => fetch("/api/server/restart", { method: "POST" }).then((r) => json(r)),
 
   listBoards: () =>
     fetch("/api/boards").then((r) => json<{ boards: Board[] }>(r)),

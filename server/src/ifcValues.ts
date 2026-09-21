@@ -9,8 +9,8 @@
  *
  * Reading the saved file is the view-only half of the design. The model open in
  * Blender may hold unsaved changes, and edits must go through Bonsai rather than
- * the file - that is the live bridge, still to come (NOTES.md). Whatever feeds
- * values in later should keep the shape `LayoutValues` has here.
+ * the file - that is the live bridge (`bonsaiBridge.ts`), whose answers take the
+ * same shape and win while Blender has the model open.
  *
  * Extraction is slow on a large model (seconds), so it never blocks: a layout
  * renders with raw placeholders until values arrive, then listeners re-sync it.
@@ -66,7 +66,7 @@ export type IfcExtract = { ifc: string; sheets: SheetExtract[]; north: North };
  * Bump when `ifc_values.py` output changes shape, so older cache entries are
  * read again rather than served until the model happens to change.
  */
-const CACHE_FORMAT = 2;
+const CACHE_FORMAT = 7;
 
 type Cached = { format?: number; mtimeMs: number; size: number; extract: IfcExtract };
 
@@ -84,7 +84,7 @@ export type LayoutValues = {
   ifc: string;
   /** Live from the model open in Blender, or read from the saved file. */
   source: "bonsai" | "saved file";
-  /** Titleblock data: the sheet's attributes, plus the revisions table. */
+  /** Titleblock data: the sheet's attributes, its site and building, and the revisions table. */
   titleblock: TemplateData;
   north: North;
   /** View-title data for the placement showing this file, if the sheet has one. */

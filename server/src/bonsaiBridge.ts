@@ -237,6 +237,11 @@ export type EditableField = {
   editable: boolean;
   /** Why not, when it cannot be edited - shown as it is given. */
   reason?: string;
+  /**
+   * The values it can take, when it is a choice rather than text - which site
+   * or building a sheet is about, by GlobalId, with "" for none.
+   */
+  options?: { value: string; label: string }[];
 };
 
 /**

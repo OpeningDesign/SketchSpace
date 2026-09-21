@@ -119,6 +119,25 @@ const savedValues = (ref: ElementRef, resolved: Resolved): Record<string, string
   return text;
 };
 
+/**
+ * A titleblock's fields, with the choice of which site and building fill them.
+ *
+ * `{{SiteTown}}` on a sheet means the town of the site that sheet is about, and
+ * the sheet says which one - Bonsai answers `Site` and `Building` with the list
+ * to pick from. They are offered only where the template shows something of
+ * theirs: a titleblock with no address has nothing for the choice to change.
+ * Not offered from the saved file, where nothing could be chosen anyway.
+ */
+const withLinks = (resolved: Resolved, names: string[]): string[] => {
+  if (resolved.target.kind !== "sheet") {
+    return names;
+  }
+  const links = ["Site", "Building"].filter(
+    (prefix) => !names.includes(prefix) && names.some((name) => name.startsWith(prefix)),
+  );
+  return [...links, ...names];
+};
+
 /** The fields a selected element offers, with whatever Bonsai can tell us. */
 export const fieldsFor = async (ref: ElementRef): Promise<ViewFields> => {
   const resolved = resolve(ref);
@@ -140,7 +159,7 @@ export const fieldsFor = async (ref: ElementRef): Promise<ViewFields> => {
     };
   }
 
-  const fields = await askEditableFields(source, ref.layout, resolved.target, names);
+  const fields = await askEditableFields(source, ref.layout, resolved.target, withLinks(resolved, names));
   return { sheet, view, connected: true, fields };
 };
 
