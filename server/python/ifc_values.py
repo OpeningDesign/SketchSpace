@@ -73,6 +73,11 @@ def description(reference):
     return reference.Description
 
 
+def with_ext(path, ext):
+    # tool.Drawing.get_path_with_ext
+    return os.path.splitext(path)[0] + f".{ext}"
+
+
 def human_scale(drawing):
     # tool.Drawing.get_drawing_human_scale
     pset = ifcopenshell.util.element.get_pset(drawing, "EPset_Drawing") or {}
@@ -216,13 +221,18 @@ def main(ifc_path):
                     drawings[key(location)] = annotation
                 break
 
+    # SheetBuilder._documents_by_uri. A schedule is kept as a spreadsheet and
+    # placed as the SVG rendered beside it (SheetBuilder.add_document), so the
+    # sheet's reference names a file the document itself never does. Both
+    # spellings are keyed, or a schedule's view-title would read "Unnamed".
     documents = {}
     for info in model.by_type("IfcDocumentInformation"):
-        if getattr(info, "Scope", None) in (None, "SHEET"):
+        if getattr(info, "Scope", None) not in ("SCHEDULE", "REFERENCE"):
             continue
         for ref in references(info):
             if ref.Location:
-                documents.setdefault(key(ref.Location), info)
+                for location in (ref.Location, with_ext(ref.Location, "svg")):
+                    documents.setdefault(key(location), info)
 
     sheets = []
     for sheet in model.by_type("IfcDocumentInformation"):

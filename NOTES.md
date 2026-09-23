@@ -269,6 +269,19 @@ first and only re-syncs the sheets that disagree. Done in one synchronous pass
 it still held the event loop long enough that the server never reached
 `listen()`, so the work is spread one sheet per tick.
 
+**A schedule is not kept in the file it is placed as.** A schedule's
+`IfcDocumentInformation` points at the spreadsheet it is authored in
+(`DOOR SCHEDULE.ods`); what a sheet places is the SVG Bonsai renders beside it
+(`SheetBuilder.add_document`). Both the live bridge and `ifc_values.py` looked a
+document up by the file placed, found nothing for a schedule, and a title that
+should read `DOOR SCHEDULE` came back as `Unnamed` from the saved file and as
+raw `{{Name}}` from Bonsai, which drops the placement rather than naming it
+wrong. A reference *is* its SVG, so references were right all along - which is
+why this went unseen. Both sides now key a document by its own path and by the
+`.svg` beside it. The build never had it: `build_documents` reads the layout's
+`data-document` STEP id, which is safe only there, because the build writes the
+layout and reads the model in the same breath.
+
 **A fallback must not look like a fault.** Rename a drawing in Bonsai without
 saving: the SVG is moved and every layout relinked at once, so the layout names
 a file the saved model has never heard of. Matching view-titles by file alone

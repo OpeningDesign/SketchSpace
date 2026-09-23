@@ -66,7 +66,7 @@ export type IfcExtract = { ifc: string; sheets: SheetExtract[]; north: North };
  * Bump when `ifc_values.py` output changes shape, so older cache entries are
  * read again rather than served until the model happens to change.
  */
-const CACHE_FORMAT = 7;
+const CACHE_FORMAT = 8;
 
 type Cached = { format?: number; mtimeMs: number; size: number; extract: IfcExtract };
 
