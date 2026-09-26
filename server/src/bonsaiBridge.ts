@@ -229,6 +229,10 @@ type EditResult = {
   removed?: string;
   /** The file of the view put back on it. */
   added?: string;
+  /** The removal took the reference out but the layout still places it. */
+  stillPlaced?: boolean;
+  /** Every drawing in the model, for a tool offering to add one. */
+  drawings?: BonsaiDrawing[];
   /** Where the sheet's layout is after the edit; it moves when a sheet is renamed. */
   layout?: string;
   kind?: string;
@@ -329,9 +333,26 @@ export const askToRemoveFromSheet = async (
   source: string,
   layout: string,
   target: Record<string, unknown>,
-): Promise<string> => {
+): Promise<{ removed: string; stillPlaced: boolean }> => {
   const answer = await ask(source, { type: "removeFromSheet", layout, target });
-  return answer.removed ?? "";
+  return { removed: answer.removed ?? "", stillPlaced: answer.stillPlaced === true };
+};
+
+/** A drawing in the model, as somewhere to add one from. */
+export type BonsaiDrawing = {
+  globalId: string;
+  name: string;
+  file: string;
+  /** Already placed on the sheet being asked about. */
+  onSheet: boolean;
+  /** Its SVG exists; one never generated cannot be placed. */
+  generated: boolean;
+};
+
+/** Every drawing in the model this layout belongs to. */
+export const askForDrawings = async (source: string, layout: string): Promise<BonsaiDrawing[]> => {
+  const answer = await ask(source, { type: "listDrawings", layout });
+  return answer.drawings ?? [];
 };
 
 /**

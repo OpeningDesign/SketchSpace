@@ -485,3 +485,123 @@ button:disabled {
 .serverstate__card p:last-child {
   margin-bottom: 0;
 }
+
+/* Picking a drawing to add to the sheet, and the click that places it. */
+.picker__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 8vh;
+  background: rgb(0 0 0 / 35%);
+}
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(28rem, 92vw);
+  max-height: 70vh;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 10px 40px rgb(0 0 0 / 25%);
+}
+
+.picker h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.picker__list {
+  flex: 1;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.picker__item {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 0;
+  background: none;
+  text-align: left;
+}
+
+.picker__item.is-active:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
+}
+
+.picker__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker__why {
+  flex: none;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.picker__note,
+.picker__error {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.picker__error {
+  color: var(--danger);
+}
+
+.picker__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.picker__foot .picker__note {
+  margin-right: auto;
+}
+
+.picker__ok:not(:disabled) {
+  border-color: var(--accent);
+}
+
+/* While waiting for the click that says where the drawing goes. */
+.board__placing {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 13px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/*
+  The prompt rides with the pointer, offset down and right so it never sits
+  under the crosshair it is describing. `left`/`top` come from the pointer, so
+  the transform only does the offset.
+*/
+.board__placing--cursor {
+  transform: translate(14px, 16px);
+  opacity: 0.95;
+}

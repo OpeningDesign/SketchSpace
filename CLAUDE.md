@@ -183,6 +183,16 @@ titleblocks". What bites:
   next sync. `scheduleSheetRemovals` asks the layout which groups have no living
   element left, which makes it idempotent - once removed, there is nothing left
   to ask about.
+- **"Add drawing" is two steps on purpose:** pick, then click. The click is the
+  position, so the dialog closes before it is taken. No editor patch is
+  involved - the item is in the `MainMenu` we already compose, and the click is
+  a capture-phase listener on the canvas container converted with
+  `viewportCoordsToSceneCoords`.
+- **Ask the layout, not only the model, before adding a drawing to a sheet.**
+  A removal that could not find the group leaves the layout placing a drawing
+  the model has forgotten; a model-only check then permits a duplicate, and
+  duplicates make the next removal ambiguous. `check_addable` checks both, and
+  `remove_from_sheet` answers `stillPlaced` when the group survived.
 - **Undo of a delete re-adds through Bonsai, from a remembered removal.** Only
   groups in `removedByUs` are put back, never "any live element the layout does
   not place" - that is also what a Bonsai-side removal looks like for a moment.

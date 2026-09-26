@@ -24,9 +24,11 @@ import path from "node:path";
 import { MM_TO_PX, parseLayout, type Placement } from "./bonsaiLayout.js";
 import {
   askEditableFields,
+  askForDrawings,
   askToAddToSheet,
   askToRemoveFromSheet,
   askToSetValues,
+  type BonsaiDrawing,
   type EditableField,
 } from "./bonsaiBridge.js";
 import { listPages } from "./db.js";
@@ -458,9 +460,47 @@ export const removeFromSheet = async (
   if (!source) {
     throw new Error("Blender is not connected - open this model in Blender to change it");
   }
-  const removed = await askToRemoveFromSheet(source, ref.layout, resolved.target);
+  const { removed, stillPlaced } = await askToRemoveFromSheet(source, ref.layout, resolved.target);
+  if (stillPlaced) {
+    // Bonsai took the reference out of the model but could not find the group,
+    // so the sheet still shows the drawing. Calling that done is how it went
+    // unnoticed until a sheet had one drawing placed three times.
+    throw new Error(
+      `${removed || "that drawing"} was removed from the model but the layout still places it - ` +
+        `Bonsai could not find its group. The sheet and the model now disagree.`,
+    );
+  }
   return { removed, target: resolved.target };
 };
+
+/**
+ * What a sheet could have added to it.
+ *
+ * The whole model's drawings, each saying whether this sheet already places it
+ * and whether it has been generated - both are reasons a person cannot pick it,
+ * and both are better shown than discovered on pressing OK.
+ */
+export const drawingsFor = async (
+  layout: string,
+): Promise<{ connected: boolean; drawings: BonsaiDrawing[] }> => {
+  const source = liveSourceForLayout(layout);
+  if (!source) {
+    return { connected: false, drawings: [] };
+  }
+  return { connected: true, drawings: await askForDrawings(source, layout) };
+};
+
+/**
+ * Place a drawing on a sheet at a point on the canvas.
+ *
+ * The same request undo uses, with no view number: this is a new placement, so
+ * Bonsai numbers it next as it would for its own Add Drawing To Sheet.
+ */
+export const placeDrawing = async (
+  layout: string,
+  globalId: string,
+  position: { x: number; y: number },
+): Promise<string> => addToSheet(layout, { globalId }, position, null);
 
 /** Put one view back on its sheet, where it was. Resolves with the file added. */
 export const addToSheet = async (

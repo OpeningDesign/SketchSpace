@@ -37,7 +37,13 @@ import {
 } from "./db.js";
 import { flushLayoutAutosaves, pushBoardToLayouts } from "./layoutWriter.js";
 import { startBonsaiBridge } from "./bonsaiBridge.js";
-import { fieldsFor, setValues, type ElementRef } from "./bonsaiEdit.js";
+import {
+  drawingsFor,
+  fieldsFor,
+  placeDrawing,
+  setValues,
+  type ElementRef,
+} from "./bonsaiEdit.js";
 import { enableIfcExtraction } from "./ifcValues.js";
 import { findBoardForLayoutsDir } from "./layoutImport.js";
 import { startLayoutWatcher } from "./layoutWatcher.js";
@@ -283,6 +289,46 @@ const withRef = (
 };
 
 app.post("/api/bonsai/fields", requireAuth, withRef((ref) => fieldsFor(ref)));
+
+/**
+ * What could be added to this sheet, and adding one.
+ *
+ * Both take a layout rather than an element: there is no placement to point at
+ * yet. The same folder guard as the others - only a layout in a folder some
+ * board was imported from.
+ */
+const withLayout =
+  (handler: (layout: string, req: express.Request) => Promise<unknown>) =>
+  async (req: express.Request, res: express.Response) => {
+    const layout = (req.body as { layout?: unknown })?.layout;
+    if (typeof layout !== "string") {
+      res.status(400).json({ error: "a layout is needed" });
+      return;
+    }
+    if (!findBoardForLayoutsDir(path.dirname(layout))) {
+      res.status(404).json({ error: "that sheet is not open in SketchSpace" });
+      return;
+    }
+    try {
+      res.json(await handler(layout, req));
+    } catch (error) {
+      res.status(502).json({ error: (error as Error).message });
+    }
+  };
+
+app.post("/api/bonsai/drawings", requireAuth, withLayout((layout) => drawingsFor(layout)));
+
+app.post(
+  "/api/bonsai/place",
+  requireAuth,
+  withLayout(async (layout, req) => {
+    const { globalId, x, y } = req.body as { globalId?: unknown; x?: unknown; y?: unknown };
+    if (typeof globalId !== "string" || typeof x !== "number" || typeof y !== "number") {
+      throw new Error("a drawing and a point are needed");
+    }
+    return { added: await placeDrawing(layout, globalId, { x, y }) };
+  }),
+);
 
 app.post(
   "/api/bonsai/values",

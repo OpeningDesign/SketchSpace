@@ -272,6 +272,32 @@ remembering what was deleted - so once Bonsai has done it, the group is no
 longer in the layout and there is nothing left to ask. Idempotent and
 self-limiting, with no state to get out of step.
 
+**Measuring a sheet by image coordinates measures where it used to be.**
+Bonsai's `next_drawing_location` chose the next free spot by reading each
+drawing's image `x`/`y` and ignoring its group's `transform` - but a move is
+written to the transform, precisely because that is what the build preserves.
+On a sheet whose drawings had been rearranged, the images still sat at y≈834mm
+with their groups lifting them back onto a 594mm page, so a drawing added in
+Bonsai landed at 1030mm: on the sheet, correctly linked, and entirely off the
+paper. It looked like it had not been added at all. This is not ours alone -
+Inkscape writes group transforms when you drag - so the fix composes the
+transform before measuring.
+
+**A half-done removal that reports success compounds.** Bonsai's
+`remove_drawing_from_sheet` takes the reference out of the model whether or not
+it finds the group in the layout, and answering "removed" either way hid that:
+the sheet still showed the drawing while the model had forgotten it. Then
+`check_addable` asked only the model whether the drawing was on the sheet, said
+no, and let a second copy be added - and two groups placing one file make the
+next removal ambiguous, because matching by file returns the first. Four
+add/remove cycles left one sheet placing one drawing three times, with two
+groups sharing a `data-id` (IfcOpenShell reuses the STEP id of a deleted
+entity, so "the group with this id" is not unique either). Each step was a
+small silence; the loop was the damage. Now: the add checks the layout as well
+as the model, the removal reports whether the group actually went, and a move
+after adding targets the group just appended rather than the first with that
+id.
+
 **An undo has to undo the thing, not the picture of it.** Deleting a drawing
 sends a removal to Bonsai, so Ctrl+Z in the browser restoring the element
 achieves nothing on its own - the layout no longer places it, and the next sync
@@ -692,6 +718,13 @@ is why the bridge is the long-term source for those values, not the file:
    it back where it was, with the view number it had - and only what SketchSpace
    removed, because an element alive that the layout does not place is also what
    a removal made in Bonsai looks like for a moment.
+5. **Done - adding a drawing to a sheet** (`AddDrawing.tsx`). The model's
+   drawings, filtered by typing; the click that follows says where it goes.
+   Bonsai places it, reusing the request undo uses - which is why placing at an
+   arbitrary point was already solved. The editor has no hook for adding a
+   canvas context-menu item (`getContextMenuItems` is a hardcoded list and
+   `contextMenu` is internal `AppState`), so this went in the main menu we
+   already compose rather than behind a patch to the vendored editor.
 
 ### Git as the issuance log
 

@@ -17,6 +17,14 @@ export type EditableField = {
   options?: { value: string; label: string }[];
 };
 
+export type BonsaiDrawing = {
+  globalId: string;
+  name: string;
+  file: string;
+  onSheet: boolean;
+  generated: boolean;
+};
+
 export type ViewFields = {
   sheet: string;
   view: string;
@@ -95,6 +103,22 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...ref, values }),
     }).then((r) => json<{ changed: string[]; layout: string }>(r)),
+
+  /** Drawings in the model behind this sheet, to add one from. */
+  bonsaiDrawings: (layout: string) =>
+    fetch("/api/bonsai/drawings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ layout }),
+    }).then((r) => json<{ connected: boolean; drawings: BonsaiDrawing[] }>(r)),
+
+  /** Place one on the sheet, at a point in millimetres. */
+  placeBonsaiDrawing: (layout: string, globalId: string, x: number, y: number) =>
+    fetch("/api/bonsai/place", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ layout, globalId, x, y }),
+    }).then((r) => json<{ added: string }>(r)),
 
   fetchFiles: (boardId: string, ids: string[]) =>
     fetch(

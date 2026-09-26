@@ -1,12 +1,81 @@
-import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
-import { useEffect, useMemo, useState } from "react";
+import {
+  Excalidraw,
+  MainMenu,
+  viewportCoordsToSceneCoords,
+} from "@excalidraw/excalidraw";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
-import { api } from "./api";
+import { AddDrawing } from "./AddDrawing";
+import { api, type BonsaiDrawing } from "./api";
 import { BonsaiPanel } from "./BonsaiPanel";
 import { getSocket } from "./socket";
 import { TabStrip } from "./TabStrip";
 import { useCollab } from "./useCollab";
 import { useViewLink } from "./useViewLink";
+
+/**
+ * Menu icons, drawn to match the editor's own rather than imported from them -
+ * `components/icons` is internal to the package and not exported.
+ *
+ * All three share the editor's geometry: a 24 box, stroked in `currentColor`
+ * at 1.5, round caps and joins, so they sit with the built-in items rather
+ * than beside them.
+ */
+const menuIcon = (children: ReactNode) => (
+  <svg
+    aria-hidden="true"
+    focusable="false"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    {children}
+  </svg>
+);
+
+/** A sheet with a plus on it. */
+const addDrawingIcon = (
+  <svg
+    aria-hidden="true"
+    focusable="false"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M13 3.5H6.5A1.5 1.5 0 0 0 5 5v14a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-6.5" />
+    <path d="M8.5 9.5h6M8.5 13h6M8.5 16.5h3.5" />
+    <path d="M18 3v5M15.5 5.5h5" />
+  </svg>
+);
+
+/** An arrow coming back round to where it started. */
+const restartIcon = menuIcon(
+  <>
+    <path d="M20 13a8 8 0 1 1-2.3-6.3" />
+    <path d="M20.5 4v5h-5" />
+  </>,
+);
+
+/** The usual power symbol: this leaves it off until something starts it again. */
+const stopIcon = menuIcon(
+  <>
+    <path d="M17.6 7.4a8 8 0 1 1-11.2 0" />
+    <path d="M12 3v8" />
+  </>,
+);
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -139,14 +208,96 @@ export const Board = ({ boardId, initialPageId, onExit }: Props) => {
   );
 
   // Only offer the Bonsai push when this board actually came from a layout.
-  const hasBonsaiPlacements = useMemo(() => {
+  const layoutPath = useMemo(() => {
     const els = collab.excalidrawAPI?.getSceneElements() ?? [];
-    return els.some(
-      (el) =>
-        (el.customData as { bonsai?: { layout?: string } } | undefined)?.bonsai
-          ?.layout,
-    );
+    for (const el of els) {
+      const layout = (el.customData as { bonsai?: { layout?: string } } | undefined)
+        ?.bonsai?.layout;
+      if (layout) {
+        return layout;
+      }
+    }
+    return null;
   }, [collab.excalidrawAPI, collab.activePageId]);
+  const hasBonsaiPlacements = layoutPath !== null;
+
+  /* --------------------------- adding a drawing --------------------------- */
+
+  // Two steps: pick one, then click where it goes. The click is what the
+  // position comes from, so the dialog closes before it is asked for.
+  const [picking, setPicking] = useState(false);
+  const [placing, setPlacing] = useState<BonsaiDrawing | null>(null);
+  const [placed, setPlaced] = useState<string | null>(null);
+  const canvas = useRef<HTMLDivElement>(null);
+  // Where to draw the prompt: beside the pointer, since the pointer is what is
+  // being aimed. Null until the mouse has moved, so it never appears somewhere
+  // the pointer is not.
+  const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null);
+
+  /** CSS reference pixels per millimetre, as the layout importer uses. */
+  const MM_TO_PX = 96 / 25.4;
+
+  const place = useCallback(
+    async (event: MouseEvent) => {
+      const api_ = collab.excalidrawAPI;
+      if (!placing || !layoutPath || !api_) {
+        return;
+      }
+      // Ours, not the editor's: a click in placing mode places, and must not
+      // also land on the canvas as a selection.
+      event.preventDefault();
+      event.stopPropagation();
+
+      const scene = viewportCoordsToSceneCoords(
+        { clientX: event.clientX, clientY: event.clientY },
+        api_.getAppState(),
+      );
+      const drawing = placing;
+      setPlacing(null);
+      try {
+        await api.placeBonsaiDrawing(
+          layoutPath,
+          drawing.globalId,
+          scene.x / MM_TO_PX,
+          scene.y / MM_TO_PX,
+        );
+        setPlaced(`added ${drawing.name}`);
+      } catch (error) {
+        setPlaced((error as Error).message);
+      }
+    },
+    [collab.excalidrawAPI, layoutPath, placing, MM_TO_PX],
+  );
+
+  useEffect(() => {
+    const node = canvas.current;
+    if (!placing || !node) {
+      setPointer(null);
+      return;
+    }
+    const cancel = (e: KeyboardEvent) => e.key === "Escape" && setPlacing(null);
+    const follow = (e: MouseEvent) => {
+      const box = node.getBoundingClientRect();
+      setPointer({ x: e.clientX - box.left, y: e.clientY - box.top });
+    };
+    node.addEventListener("click", place, true);
+    node.addEventListener("mousemove", follow);
+    node.addEventListener("mouseleave", () => setPointer(null));
+    window.addEventListener("keydown", cancel);
+    return () => {
+      node.removeEventListener("click", place, true);
+      node.removeEventListener("mousemove", follow);
+      window.removeEventListener("keydown", cancel);
+    };
+  }, [placing, place]);
+
+  useEffect(() => {
+    if (!placed) {
+      return;
+    }
+    const t = setTimeout(() => setPlaced(null), 4000);
+    return () => clearTimeout(t);
+  }, [placed]);
 
   return (
     <div className="board">
@@ -185,7 +336,28 @@ export const Board = ({ boardId, initialPageId, onExit }: Props) => {
         onMove={collab.movePage}
       />
 
-      <div className="board__canvas">
+      <div className="board__canvas" ref={canvas}>
+        {picking && layoutPath && (
+          <AddDrawing
+            layout={layoutPath}
+            onClose={() => setPicking(false)}
+            onPick={(drawing) => {
+              setPicking(false);
+              setPlacing(drawing);
+            }}
+          />
+        )}
+
+        {placing && pointer && (
+          <div
+            className="board__placing board__placing--cursor"
+            style={{ left: pointer.x, top: pointer.y }}
+          >
+            Click where <strong>{placing.name}</strong> should go — Esc to cancel
+          </div>
+        )}
+        {placed && <div className="board__placing">{placed}</div>}
+
         {/*
           Sits in the canvas layer rather than the header, tucked to the left of
           Excalidraw's help button, so the layout write is visible where the
@@ -233,11 +405,25 @@ export const Board = ({ boardId, initialPageId, onExit }: Props) => {
             {/* `allowSystemTheme` needs the host to own theme state; we don't. */}
             <MainMenu.DefaultItems.ToggleTheme allowSystemTheme={false} />
             <MainMenu.DefaultItems.ChangeCanvasBackground />
+            {/*
+              Bonsai places the drawing and the sheet updates itself, so this
+              belongs with the sheet rather than with the editor's own tools.
+              Only on a page that is a Bonsai sheet: there is nowhere to put a
+              drawing otherwise.
+            */}
+            {hasBonsaiPlacements && (
+              <>
+                <MainMenu.Separator />
+                <MainMenu.Item icon={addDrawingIcon} onSelect={() => setPicking(true)}>
+                  Add drawing…
+                </MainMenu.Item>
+              </>
+            )}
             <MainMenu.Separator />
-            <MainMenu.Item onSelect={() => void restartServer()}>
+            <MainMenu.Item icon={restartIcon} onSelect={() => void restartServer()}>
               Restart SketchSpace
             </MainMenu.Item>
-            <MainMenu.Item onSelect={() => void stopServer()}>
+            <MainMenu.Item icon={stopIcon} onSelect={() => void stopServer()}>
               Stop SketchSpace
             </MainMenu.Item>
           </MainMenu>

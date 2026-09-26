@@ -485,6 +485,21 @@ IFC does not allow an empty one. A site and a building that share one address
 object share the edit as well. A field with no site or building behind it is
 refused, with a message saying to pick one.
 
+### Adding a drawing to a sheet
+
+**Add drawing…** in the ☰ menu lists the model's drawings. Type to filter, pick
+one, and then click where it should go on the sheet — that click is the
+position, so it is asked for after the choice rather than before. Escape
+cancels.
+
+A drawing already on this sheet, or one that has never been generated, is shown
+greyed with the reason. Both are refusals Bonsai would make, and a reason given
+up front beats one after pressing OK.
+
+Bonsai does the placing: it adds the sheet's reference and the group in the
+layout, numbering the view as it would for its own *Add Drawing To Sheet*. The
+drawing then reaches the page the way anything Bonsai changes does.
+
 ### Deleting a drawing from a sheet
 
 Select a drawing and delete it, and it is taken off the sheet in Bonsai too -
