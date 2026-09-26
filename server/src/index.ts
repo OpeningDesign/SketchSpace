@@ -24,6 +24,7 @@ import {
 } from "./assets.js";
 import { boardRoom, pageRoom, registerCollab } from "./collab.js";
 import { config } from "./config.js";
+import { since, startTimestampingLogs } from "./log.js";
 import {
   createBoard,
   deleteBoard,
@@ -41,6 +42,9 @@ import { enableIfcExtraction } from "./ifcValues.js";
 import { findBoardForLayoutsDir } from "./layoutImport.js";
 import { startLayoutWatcher } from "./layoutWatcher.js";
 import { flushAll } from "./store.js";
+
+startTimestampingLogs();
+const bootedAt = Date.now();
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const clientDir = path.resolve(here, "../client");
@@ -337,7 +341,18 @@ app.post("/api/server/restart", requireAuth, (_req, res) => {
 /* --------------------------------- client -------------------------------- */
 
 if (existsSync(clientDir)) {
-  app.use(express.static(clientDir));
+  app.use(
+    express.static(clientDir, {
+      setHeaders: (res, filePath) => {
+        // Vite puts a content hash in every asset's name, so a given URL never
+        // changes what it holds - but they were being revalidated on every
+        // load. index.html is what names them, so it must not be cached.
+        if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        }
+      },
+    }),
+  );
   // SPA fallback: anything that is not an API route serves the app shell.
   app.get(/^\/(?!api\/|socket\.io\/).*/, (_req, res) => {
     res.sendFile(path.join(clientDir, "index.html"));
@@ -356,28 +371,54 @@ const io = new Server(httpServer, {
 
 registerCollab(io);
 
-// Read the model values view-titles and titleblocks show. Only the server does
-// this; CLIs use what it has cached. Must precede the watcher, which asks for
-// values as it adopts each layout.
-const stopIfcExtraction = enableIfcExtraction();
-// ...and take them live from any Blender that has the model open.
-const stopBonsaiBridge = startBonsaiBridge();
+/**
+ * Everything that has to happen before the server is fully itself, but not
+ * before it can answer.
+ *
+ * This used to run before `listen`, which meant the port stayed shut until
+ * every board had been adopted - twelve seconds on a machine with seven
+ * projects, and over forty on a cold one. Nothing was visibly wrong; Blender's
+ * "open layout" button simply did nothing for that long, because
+ * `open-layout.mjs` waits for the port before it will launch a browser, and it
+ * gives up at forty-five seconds - so the slowest starts opened nothing at all.
+ *
+ * Serving first is safe: pages come from the database, which is already
+ * correct. Adoption re-reads layouts and their assets, and anything it changes
+ * reaches open tabs the same way a change made later does. The one visible
+ * consequence is that a tab renamed in Bonsai while the server was down may
+ * show its old name for a moment after a reload.
+ */
+let stopIfcExtraction = () => {};
+let stopBonsaiBridge = () => {};
+let stopLayoutWatcher = () => {};
 
-// Pull in changes Bonsai makes to imported layouts - drawings added or removed,
-// and the reflow that follows a regenerated drawing changing size.
-const stopLayoutWatcher = startLayoutWatcher(
-  (pageId, elements) => {
-    io.to(pageRoom(pageId)).emit("scene:patch", { pageId, elements });
-  },
-  // Tabs added, renamed or removed in Bonsai have to reach open tab strips too,
-  // not just the scene.
-  (boardId) => {
-    io.to(boardRoom(boardId)).emit("pages:update", {
-      boardId,
-      pages: listPages(boardId),
-    });
-  },
-);
+const startBackgroundWork = () => {
+  const started = Date.now();
+
+  // Read the model values view-titles and titleblocks show. Only the server
+  // does this; CLIs use what it has cached. Must precede the watcher, which
+  // asks for values as it adopts each layout.
+  stopIfcExtraction = enableIfcExtraction();
+  // ...and take them live from any Blender that has the model open.
+  stopBonsaiBridge = startBonsaiBridge();
+
+  // Pull in changes Bonsai makes to imported layouts - drawings added or
+  // removed, and the reflow that follows a regenerated drawing changing size.
+  stopLayoutWatcher = startLayoutWatcher(
+    (pageId, elements) => {
+      io.to(pageRoom(pageId)).emit("scene:patch", { pageId, elements });
+    },
+    // Tabs added, renamed or removed in Bonsai have to reach open tab strips
+    // too, not just the scene.
+    (boardId) => {
+      io.to(boardRoom(boardId)).emit("pages:update", {
+        boardId,
+        pages: listPages(boardId),
+      });
+    },
+    () => console.log(`[sketchspace] boards adopted in ${since(started)}`),
+  );
+};
 
 httpServer.on("error", (error: NodeJS.ErrnoException) => {
   if (error.code === "EADDRINUSE") {
@@ -395,8 +436,11 @@ httpServer.on("error", (error: NodeJS.ErrnoException) => {
 });
 
 httpServer.listen(config.port, () => {
-  console.log(`[sketchspace] listening on http://localhost:${config.port}`);
+  console.log(`[sketchspace] listening on http://localhost:${config.port} (${since(bootedAt)})`);
   console.log(`[sketchspace] data directory: ${path.resolve(config.dataDir)}`);
+  // On the next tick, so this callback returns and the first requests are
+  // served while the boards are still being adopted.
+  setImmediate(startBackgroundWork);
 });
 
 /**

@@ -188,8 +188,14 @@ titleblocks". What bites:
   image (`resizeToDrawings`, mirroring `update_sheet_drawing_sizes` - the
   view-title tracks the bottom edge). Never write those sizes back: Bonsai owns
   them.
-- **Startup work goes through `runSoon`,** one sheet per tick. `startLayoutWatcher`
-  runs before `httpServer.listen`, so anything synchronous there delays serving.
+- **`httpServer.listen` comes first; everything else starts on the next tick.**
+  Extraction, the bridge and the watcher all run from `startBackgroundWork`, and
+  every piece of adoption goes through `runSoon`, one job per tick. Anything
+  synchronous added ahead of `listen` is time the port is shut, which
+  `open-layout.mjs` spends waiting with nothing on screen.
+- **Never open the browser before the port answers.** The page is plain HTML
+  with no retry; a browser that arrives early shows "connection refused" and
+  stays there.
 - **Never re-render a filled title as raw.** A title that cannot be matched to
   values keeps the image it has (`isUnmatched`); replacing it with
   `{{placeholders}}` reads as a fault. `CACHE_FORMAT` in `ifcValues.ts` must be

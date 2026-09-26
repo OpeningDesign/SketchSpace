@@ -513,8 +513,10 @@ const schedule = (layoutPath: string, broadcast: Broadcast): void => {
 const refreshWatches = (
   broadcast: Broadcast,
   broadcastPages: BroadcastPages,
+  onSettled?: () => void,
 ): void => {
   const wanted = scanLayouts();
+  const adoptedDirs: string[] = [];
 
   for (const [layoutPath, watcher] of watchers) {
     if (!wanted.has(layoutPath)) {
@@ -546,8 +548,10 @@ const refreshWatches = (
       console.log(`[sketchspace] watching layouts dir ${dir}`);
       // Reconcile once on adoption. A directory can arrive already out of step -
       // a board imported by a script while we were not watching it, or sheets
-      // renamed between the import and the next rescan.
-      reconcileDirectory(dir, broadcast, broadcastPages);
+      // renamed between the import and the next rescan. Deferred with the rest
+      // of the adoption work: at startup this is every project at once, and
+      // done inline it is most of the time the server takes to come up.
+      adoptedDirs.push(dir);
     } catch (error) {
       console.error(`[sketchspace] cannot watch ${dir}:`, error);
     }
@@ -616,8 +620,17 @@ const refreshWatches = (
   // A drawing regenerated at a different size while we were not running leaves
   // the layout's box stale, and the drawing stretched into it. Cheap to check,
   // so it is checked on adoption rather than waiting for the next change.
-  const resized = new Set(adopted.filter((layoutPath) => drawingSizesChanged(layoutPath)));
   const jobs: (() => void)[] = [];
+  for (const dir of adoptedDirs) {
+    jobs.push(() => {
+      try {
+        reconcileDirectory(dir, broadcast, broadcastPages);
+      } catch (error) {
+        console.error(`[sketchspace] reconcile failed for ${dir}:`, error);
+      }
+    });
+  }
+  const resized = new Set(adopted.filter((layoutPath) => drawingSizesChanged(layoutPath)));
   for (const layoutPath of resized) {
     jobs.push(() => resyncLayoutAssets(layoutPath, broadcast, "drawing resized"));
   }
@@ -628,25 +641,25 @@ const refreshWatches = (
   }
   // One sheet per tick. At startup this is every sheet of every board, and a
   // full re-sync re-reads and re-hashes every drawing on a sheet - done in one
-  // go it held the event loop long enough that the server never got to listen.
+  // go it held the event loop long enough that nothing else could be served.
+  if (onSettled) {
+    jobs.push(onSettled);
+  }
   runSoon(jobs);
 };
 
 export const startLayoutWatcher = (
   broadcast: Broadcast,
   broadcastPages: BroadcastPages,
+  /** Called once every board has been caught up with - for reporting how long. */
+  onSettled?: () => void,
 ): (() => void) => {
-  refreshWatches(broadcast, broadcastPages);
+  // Catching up on what changed while we were not running - sheets added,
+  // renamed or removed in Bonsai between sessions - is part of adopting each
+  // directory, and happens there. It used to be repeated here as well, so
+  // every project was reconciled twice on the way up.
+  refreshWatches(broadcast, broadcastPages, onSettled);
 
-  // Catch up on anything that changed while we were not running: sheets added,
-  // renamed, or removed in Bonsai between sessions.
-  for (const dir of [...dirWatchers.keys()]) {
-    try {
-      reconcileDirectory(dir, broadcast, broadcastPages);
-    } catch (error) {
-      console.error(`[sketchspace] startup reconcile failed for ${dir}:`, error);
-    }
-  }
   const rescan = setInterval(
     () => refreshWatches(broadcast, broadcastPages),
     RESCAN_MS,

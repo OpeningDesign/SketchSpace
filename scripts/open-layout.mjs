@@ -161,19 +161,50 @@ const autostart =
   !process.argv.includes("--no-start") &&
   process.env.SKETCHSPACE_NO_AUTOSTART !== "1";
 
-if (!(await isPortListening(config.port))) {
-  if (!autostart) {
-    console.error(
-      [
-        "",
-        `SketchSpace is not running on port ${config.port}, and autostart is off.`,
-        "  Start it with:  npm start",
-        "",
-      ].join("\n"),
-    );
-    process.exit(1);
-  }
+const url = `http://localhost:${config.port}/#/board/${target.boardId}/${target.pageId}`;
+const running = await isPortListening(config.port);
 
+if (!running && !autostart) {
+  console.error(
+    [
+      "",
+      `SketchSpace is not running on port ${config.port}, and autostart is off.`,
+      "  Start it with:  npm start",
+      "",
+    ].join("\n"),
+  );
+  process.exit(1);
+}
+
+console.log(`opening ${target.boardName} / ${target.pageName}`);
+console.log(url);
+
+/**
+ * Hand off to the platform's browser opener, detached so Blender is not left
+ * holding a child process.
+ *
+ * Never before the port answers. The page is plain HTML with no retry of its
+ * own, so a browser that arrives early gets the browser's own "connection
+ * refused" and stays there - worse than waiting, because it looks broken and
+ * needs a reload by hand. With the server listening before it adopts its
+ * boards, that wait is now about a second rather than the twelve it was.
+ */
+const openBrowser = () => {
+  if (process.argv.includes("--no-open")) {
+    return;
+  }
+  const opener =
+    process.platform === "win32"
+      ? ["cmd", ["/c", "start", "", url]]
+      : process.platform === "darwin"
+        ? ["open", [url]]
+        : ["xdg-open", [url]];
+  spawn(opener[0], opener[1], { detached: true, stdio: "ignore" }).unref();
+};
+
+if (running) {
+  openBrowser();
+} else {
   const logPath = path.join(path.resolve(config.dataDir), "server.log");
   console.log(`starting SketchSpace (log: ${logPath})`);
   const pid = startServerDetached({
@@ -182,7 +213,10 @@ if (!(await isPortListening(config.port))) {
     logPath,
   });
 
-  if (!(await waitForServer(config.port))) {
+  if (await waitForServer(config.port)) {
+    console.log(`started (pid ${pid})`);
+    openBrowser();
+  } else {
     console.error(
       [
         "",
@@ -193,24 +227,4 @@ if (!(await isPortListening(config.port))) {
     );
     process.exit(1);
   }
-  console.log(`started (pid ${pid})`);
 }
-
-const url = `http://localhost:${config.port}/#/board/${target.boardId}/${target.pageId}`;
-console.log(`opening ${target.boardName} / ${target.pageName}`);
-console.log(url);
-
-if (process.argv.includes("--no-open")) {
-  process.exit(0);
-}
-
-// Hand off to the platform's browser opener. detached + unref so Blender is not
-// left holding a child process.
-const opener =
-  process.platform === "win32"
-    ? ["cmd", ["/c", "start", "", url]]
-    : process.platform === "darwin"
-      ? ["open", [url]]
-      : ["xdg-open", [url]];
-
-spawn(opener[0], opener[1], { detached: true, stdio: "ignore" }).unref();

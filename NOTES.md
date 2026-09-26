@@ -166,6 +166,38 @@ modified time and size, and a layout renders with raw placeholders until values
 arrive. CLIs never extract: a script importing a board would otherwise either
 wait for the read or exit and throw it away. They use the server's cache.
 
+**A server that has not opened its port looks exactly like a broken one.**
+Everything used to be ready before `listen`: extraction, the bridge, and the
+watcher adopting seven projects, sixty sheets and eleven hundred assets. Twelve
+seconds with the port shut, and `open-layout.mjs` waits for the port before it
+will launch a browser - so Blender's button did nothing at all for twelve
+seconds, with no way to tell a slow start from a broken one. Worse at the tail:
+`waitForServer` gives up at forty-five, and a start slower than that opened
+nothing, the reason going to a log nobody reads because Bonsai runs the script
+through `subprocess.Popen`. Listening first put it at 1.5s. Serving before the
+boards are adopted is safe because pages come from the database, which is
+already right; adoption only re-reads what is on disk.
+
+**Two places catching up means catching up twice.** `refreshWatches` reconciles
+each directory as it adopts it, and `startLayoutWatcher` then looped over every
+directory and reconciled them all again - so every project was done twice on
+the way up, and nobody noticed because both passes are correct. Removing the
+second took adoption from about twelve seconds to four. Idempotent work hides
+this: it never breaks, it only costs.
+
+**A log with no timestamps cannot answer the question you have.** The one
+question ever asked of this log is "why was it slow that time", and it was
+unanswerable - working out where the twelve seconds went meant measuring from
+outside with the server stopped. Every line is stamped now, and startup says
+how long it took to listen and how long adoption ran.
+
+**Arriving early is worse than waiting.** Launching the browser in parallel
+with the server looked like free time - the window takes a second or two to
+appear anyway. But the page is plain HTML with no retry, so a browser that
+beats the port gets the browser's own "connection refused" and stays there
+until someone reloads by hand. A wait that ends correctly beats a race that
+sometimes ends in an error page.
+
 **Whoever can do the thing decides whether it can be done.** A panel offering
 template fields has to know which of them can be written, and it is tempting to
 answer that where the panel is - a short list, easy to read. But the operations
@@ -648,6 +680,13 @@ downsample underlays at import, which is almost certainly the bigger win.
   `{{#buildings}}…{{/buildings}}` sections, sorted by name, with a `y` step per
   row as the revisions table has. Goes into Bonsai's `get_titleblock_data`
   first, like every other titleblock value.
+- **A new sheet waits eight seconds before its tab appears.** `open-layout.mjs`
+  gives a running server `SERVER_BIND_WAIT_MS` to bind the layout itself,
+  because the file may have just been renamed and adding a tab here as well
+  produced two on one sheet. When the sheet really is new - just made in Bonsai
+  - none of that applies and the wait is spent in silence, polling a lookup
+  that costs ten milliseconds. It should end as soon as the server says it has
+  seen the directory rather than guessing at a duration.
 - **The watcher fires two sync passes per external edit.** Converges correctly,
   but does twice the work. Likely Windows `fs.watch` plus Dropbox touching the
   file.
