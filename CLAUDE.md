@@ -178,6 +178,14 @@ titleblocks". What bites:
   element (the titleblock) is never selected - only `activeLockedId` - and a save
   replaces the scene, which drops that. It follows `groupKey`, and re-anchors to
   the layout path Bonsai answers with, since renaming a sheet moves its layout.
+- **A deleted placement goes to Bonsai, not to the layout.** The layout is what
+  places the drawing, so a delete that does not reach Bonsai is undone by the
+  next sync. `scheduleSheetRemovals` asks the layout which groups have no living
+  element left, which makes it idempotent - once removed, there is nothing left
+  to ask about.
+- **Undo of a delete re-adds through Bonsai, from a remembered removal.** Only
+  groups in `removedByUs` are put back, never "any live element the layout does
+  not place" - that is also what a Bonsai-side removal looks like for a moment.
 - **Template values are edited through Bonsai, never written.** `bonsaiEdit.ts`
   resolves a selected element to a view and asks the Blender holding that model
   (`getEditableFields`, `setTemplateValue`); nothing here writes a value into

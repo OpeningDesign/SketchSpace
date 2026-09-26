@@ -111,9 +111,16 @@ npm run smoke -- http://localhost:3111 dev
 
 All 18 checks should report `ok`.
 
-The server adopts every board and registers its watchers *before* it listens,
-so on a machine with real projects that takes seconds rather than milliseconds.
-The smoke test waits for it, so the two commands above are safe to paste
+The server listens first and adopts its boards afterwards, so the port answers
+in about a second even on a machine with real projects, while the boards are
+still being caught up with in the background. The log says how long each took:
+
+```
+listening on http://localhost:3000 (1.5s)
+boards adopted in 4.1s
+```
+
+The smoke test waits for the port, so the two commands above are safe to paste
 together - but if you script anything else against a freshly started server,
 wait for the port rather than assuming it is up.
 
@@ -477,6 +484,29 @@ shown and edited as one line. Clearing every part removes the address, because
 IFC does not allow an empty one. A site and a building that share one address
 object share the edit as well. A field with no site or building behind it is
 refused, with a message saying to pick one.
+
+### Deleting a drawing from a sheet
+
+Select a drawing and delete it, and it is taken off the sheet in Bonsai too -
+`bim.remove_drawing_from_sheet`, applied to the model Blender has open. Without
+that it would not stick: the layout still places the drawing, so the next sync
+brings it back.
+
+Only the sheet's reference to the drawing goes. The drawing itself - its
+annotation, its camera, its SVG - is untouched, and it stays on any other sheet
+that places it. Put it back with **Add Drawing To Sheet** in Bonsai.
+
+**Undo puts it back.** Ctrl+Z restores the drawing to the sheet in Bonsai as
+well, where it was and with the view number it had. Within a few seconds of
+deleting, nothing has been sent yet and the undo simply cancels it; after that
+the drawing is re-added. Either way the sheet ends up as it was.
+
+Undo only puts back what SketchSpace removed, and only for ten minutes. A
+drawing you removed in Bonsai stays removed, even if its element is briefly
+still on screen.
+
+With no Blender connected nothing is sent, the drawing returns on the next
+sync, and the server log says why.
 
 Some fields cannot be typed: a drawing's scale comes from its camera, the
 revision table is read from the project repository's tags, and `SiteAddress`

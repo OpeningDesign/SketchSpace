@@ -18,12 +18,21 @@
  * Both are in the layout; the group's `data-id` is a STEP id and does not
  * survive a re-serialised model (IfcOpenShell#9468).
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { parseLayout, type Placement } from "./bonsaiLayout.js";
-import { askEditableFields, askToSetValues, type EditableField } from "./bonsaiBridge.js";
+import { MM_TO_PX, parseLayout, type Placement } from "./bonsaiLayout.js";
+import {
+  askEditableFields,
+  askToAddToSheet,
+  askToRemoveFromSheet,
+  askToSetValues,
+  type EditableField,
+} from "./bonsaiBridge.js";
+import { listPages } from "./db.js";
 import { getLayoutValues, liveSourceForLayout } from "./ifcValues.js";
+import { getElements } from "./store.js";
+import { normalisePath } from "./paths.js";
 import { placeholdersIn } from "./templates.js";
 
 /** What a board element carries about the placement it came from. */
@@ -179,4 +188,290 @@ export const setValues = async (
     throw new Error("Blender is not connected - open this model in Blender to edit it");
   }
   return askToSetValues(source, ref.layout, resolved.target, values);
+};
+
+/* ------------------------ deleting from the sheet ------------------------ */
+
+/**
+ * Deleting a drawing here has to reach Bonsai, or it does not stick.
+ *
+ * The layout still places it, so `syncPageWithLayout` revives the element the
+ * next time the sheet is read - the drawing comes back, which looks like the
+ * delete was ignored. Bonsai is the one that can take it off: it removes the
+ * sheet's reference and the group from the layout, the watcher picks that up,
+ * and the element stays gone because nothing places it any more.
+ *
+ * Only the sheet's reference to the drawing goes. The drawing itself - its
+ * annotation, its camera, its SVG - is untouched, and so is any other sheet
+ * placing it. That is `bim.remove_drawing_from_sheet`, not a delete.
+ */
+const REMOVAL_DEBOUNCE_MS = 4000;
+const pendingRemovals = new Map<string, NodeJS.Timeout>();
+
+/**
+ * Groups the layout still places whose every element on the page is deleted.
+ *
+ * Asking the layout rather than remembering what we sent keeps this
+ * self-limiting: once Bonsai has removed the group, the layout no longer has
+ * it and there is nothing left to ask for. A group with no elements at all is
+ * not a deletion - it was never synced.
+ */
+const deletedGroups = (layoutPath: string, elements: readonly SceneElement[]): string[] => {
+  const alive = new Map<string, boolean>();
+  for (const el of elements) {
+    const meta = (el.customData as { bonsai?: { groupKey?: string } } | undefined)?.bonsai;
+    if (!meta?.groupKey) {
+      continue;
+    }
+    alive.set(meta.groupKey, (alive.get(meta.groupKey) ?? false) || !el.isDeleted);
+  }
+
+  const gone = new Set<string>();
+  for (const p of parseLayout(layoutPath).placements) {
+    // The titleblock is locked and Bonsai refuses to remove it anyway.
+    if (p.kind !== "titleblock" && alive.get(p.groupKey) === false) {
+      gone.add(p.groupKey);
+    }
+  }
+  return [...gone];
+};
+
+type SceneElement = {
+  isDeleted?: boolean;
+  x?: number;
+  y?: number;
+  role?: string;
+  customData?: {
+    bonsai?: { layout?: string; groupKey?: string; kind?: string; globalId?: string | null; role?: string };
+  };
+};
+
+/**
+ * Tell Bonsai about drawings deleted on this board, once the dust settles.
+ *
+ * Debounced longer than the layout autosave: this is not reversible from here,
+ * and the seconds are what let an undo land before anything is asked of the
+ * model.
+ */
+export const scheduleSheetRemovals = (boardId: string): void => {
+  clearTimeout(pendingRemovals.get(boardId));
+  pendingRemovals.set(
+    boardId,
+    setTimeout(() => {
+      pendingRemovals.delete(boardId);
+      void applySheetRemovals(boardId);
+    }, REMOVAL_DEBOUNCE_MS),
+  );
+};
+
+const applySheetRemovals = async (boardId: string): Promise<void> => {
+  for (const page of listPages(boardId)) {
+    // Through the store, not the database: a delete made seconds ago may not
+    // have passed the persistence debounce yet.
+    const elements = getElements(page.id) as unknown as SceneElement[];
+    const layoutPath = elements
+      .map((el) => el.customData?.bonsai?.layout)
+      .find((l): l is string => Boolean(l));
+    if (!layoutPath || !existsSync(layoutPath)) {
+      continue;
+    }
+
+    let groups: string[];
+    try {
+      groups = deletedGroups(layoutPath, elements);
+      // An undo is the other half of the same question, and asks the same two
+      // things of the same two places - so it is answered in the same pass.
+      await applySheetRevivals(layoutPath, elements);
+    } catch (error) {
+      console.warn(`[sketchspace] could not read ${path.basename(layoutPath)}: ${(error as Error).message}`);
+      continue;
+    }
+    if (groups.length === 0) {
+      continue;
+    }
+
+    const source = liveSourceForLayout(layoutPath);
+    if (!source) {
+      // Nothing can be done about it, and the drawing will be back on the next
+      // sync - so say why rather than letting that look like a fault.
+      console.warn(
+        `[sketchspace] ${groups.length} drawing(s) deleted on ${path.basename(layoutPath)}, ` +
+          `but no Blender has this model open - they will come back. ` +
+          `Open it in Blender and delete them again to remove them from the sheet.`,
+      );
+      continue;
+    }
+
+    for (const groupKey of groups) {
+      const meta = elements.find(
+        (el) => el.customData?.bonsai?.groupKey === groupKey,
+      )?.customData?.bonsai;
+      try {
+        const { removed, target } = await removeFromSheet({
+          layout: layoutPath,
+          groupKey,
+          kind: meta?.kind,
+          globalId: meta?.globalId ?? null,
+        });
+        remember(layoutPath, groupKey, target, whereItSat(elements, groupKey), numberOf(layoutPath, target));
+        console.log(
+          `[sketchspace] removed ${removed || groupKey} from ${path.basename(layoutPath)} in Bonsai`,
+        );
+      } catch (error) {
+        console.warn(
+          `[sketchspace] could not remove ${groupKey} from ${path.basename(layoutPath)}: ` +
+            (error as Error).message,
+        );
+      }
+    }
+  }
+};
+
+/* ------------------------------ undoing that ----------------------------- */
+
+/**
+ * What we took off a sheet, so that undoing in the browser can put it back.
+ *
+ * Only our own removals: a drawing taken off in Bonsai also leaves an element
+ * alive for a moment before the sync marks it deleted, and re-adding that
+ * would be SketchSpace arguing with Bonsai about a decision Bonsai made. So
+ * this is a record of what we did, not a rule about what a sheet should hold -
+ * which is also why it expires. Undo is about the thing you just did.
+ */
+type Removal = {
+  target: Record<string, unknown>;
+  position: { x: number; y: number } | null;
+  identification: string | null;
+  at: number;
+};
+
+const UNDO_WINDOW_MS = 10 * 60_000;
+const removedByUs = new Map<string, Removal>();
+
+const keyOf = (layout: string, groupKey: string) => `${normalisePath(layout)}|${groupKey}`;
+
+const remember = (
+  layout: string,
+  groupKey: string,
+  target: Record<string, unknown>,
+  position: { x: number; y: number } | null,
+  identification: string | null,
+) => {
+  removedByUs.set(keyOf(layout, groupKey), { target, position, identification, at: Date.now() });
+};
+
+/**
+ * Where a group's drawing sits now, in millimetres.
+ *
+ * From the element rather than its stored baseline, which the autosave may not
+ * have caught up with - a drawing moved and then deleted should come back
+ * where it was left, not where it was last written.
+ */
+const whereItSat = (
+  elements: readonly SceneElement[],
+  groupKey: string,
+): { x: number; y: number } | null => {
+  const image = elements.find(
+    (el) =>
+      el.customData?.bonsai?.groupKey === groupKey && el.customData.bonsai.role !== "view-title",
+  );
+  return image && typeof image.x === "number" && typeof image.y === "number"
+    ? { x: image.x / MM_TO_PX, y: image.y / MM_TO_PX }
+    : null;
+};
+
+/** The view number the drawing had, so it comes back called what it was. */
+const numberOf = (layout: string, target: Record<string, unknown>): string | null => {
+  const values = getLayoutValues(layout);
+  const data = target.path ? values?.placement(String(target.path)) : undefined;
+  const identification = data?.Identification;
+  return identification && identification !== "None" ? identification : null;
+};
+
+/**
+ * Put back anything we removed whose element is alive again - an undo.
+ *
+ * The element coming back is the signal, and the layout not placing it is what
+ * says the removal has already happened. Both have to hold: within the
+ * debounce an undo simply cancels the removal before it is sent, and no undo
+ * is needed here.
+ */
+const applySheetRevivals = async (
+  layoutPath: string,
+  elements: readonly SceneElement[],
+): Promise<void> => {
+  const now = Date.now();
+  const placed = new Set(parseLayout(layoutPath).placements.map((p) => p.groupKey));
+
+  for (const [key, removal] of [...removedByUs]) {
+    if (now - removal.at > UNDO_WINDOW_MS) {
+      removedByUs.delete(key);
+      continue;
+    }
+    const [layoutKey, groupKey] = key.split("|");
+    if (layoutKey !== normalisePath(layoutPath) || placed.has(groupKey!)) {
+      // Back on the sheet by some other route; nothing of ours to undo.
+      if (placed.has(groupKey!)) {
+        removedByUs.delete(key);
+      }
+      continue;
+    }
+    const alive = elements.some(
+      (el) => !el.isDeleted && el.customData?.bonsai?.groupKey === groupKey,
+    );
+    if (!alive) {
+      continue;
+    }
+
+    try {
+      const added = await addToSheet(
+        layoutPath,
+        removal.target,
+        removal.position,
+        removal.identification,
+      );
+      removedByUs.delete(key);
+      console.log(
+        `[sketchspace] put ${added || groupKey} back on ${path.basename(layoutPath)} in Bonsai`,
+      );
+    } catch (error) {
+      console.warn(
+        `[sketchspace] could not put ${groupKey} back on ${path.basename(layoutPath)}: ` +
+          (error as Error).message,
+      );
+    }
+  }
+};
+
+/**
+ * Take one view off its sheet, through Bonsai.
+ *
+ * Answers with the file removed and the target it was named by - an undo has
+ * to name the same drawing, and by then the layout no longer places it, so it
+ * cannot be resolved from the layout a second time.
+ */
+export const removeFromSheet = async (
+  ref: ElementRef,
+): Promise<{ removed: string; target: Record<string, unknown> }> => {
+  const resolved = resolve(ref);
+  const source = liveSourceForLayout(ref.layout);
+  if (!source) {
+    throw new Error("Blender is not connected - open this model in Blender to change it");
+  }
+  const removed = await askToRemoveFromSheet(source, ref.layout, resolved.target);
+  return { removed, target: resolved.target };
+};
+
+/** Put one view back on its sheet, where it was. Resolves with the file added. */
+export const addToSheet = async (
+  layout: string,
+  target: Record<string, unknown>,
+  position: { x: number; y: number } | null,
+  identification: string | null,
+): Promise<string> => {
+  const source = liveSourceForLayout(layout);
+  if (!source) {
+    throw new Error("Blender is not connected - open this model in Blender to change it");
+  }
+  return askToAddToSheet(source, layout, target, position, identification);
 };

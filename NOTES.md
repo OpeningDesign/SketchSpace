@@ -261,6 +261,34 @@ instead of the drawing - so after a save the panel asks again rather than
 keeping what was typed. The same reason the sheet itself re-renders from the
 bridge: the model is what is true.
 
+**Deleting something the layout still places is not a deletion.** Delete a
+drawing on a sheet and the element goes, but the layout has not changed - so
+the next sync revives it (`syncPageWithLayout`) and the drawing is back. It
+reads as the delete being ignored. Only Bonsai can take a drawing off a sheet:
+it removes the sheet's reference and the group from the layout, and the element
+then stays gone because nothing places it. What is asked for is found by asking
+the layout which of its groups have no living element left, rather than by
+remembering what was deleted - so once Bonsai has done it, the group is no
+longer in the layout and there is nothing left to ask. Idempotent and
+self-limiting, with no state to get out of step.
+
+**An undo has to undo the thing, not the picture of it.** Deleting a drawing
+sends a removal to Bonsai, so Ctrl+Z in the browser restoring the element
+achieves nothing on its own - the layout no longer places it, and the next sync
+takes it away again. Undo now asks Bonsai to put the drawing back, where it was
+and with the number it had: Bonsai's own add places it in the next free spot
+and numbers it next, which is right for adding a drawing and wrong for undoing
+one. Within the debounce no undo is needed at all - the delete has not been
+sent, and the check, being recomputed from current state, simply does not fire.
+
+**Deciding by state alone is wrong when the question is "did I do this?".**
+Removals are found by asking the layout, which needs no memory and cannot go
+stale. Undo cannot work that way: an element alive that the layout does not
+place is *also* what you see for a moment after Bonsai removes a drawing
+itself, and re-adding that would be SketchSpace overruling Bonsai. So undo
+keeps a record of what it removed, and only puts those back - and the record
+expires, because undo is about the thing you just did.
+
 **An edit that moves the thing it edited has to say where it went.** Renaming a
 sheet renames its layout, so a moment after the answer arrives the path the
 question named is gone. Asking again by that path failed, the fields stayed as
@@ -625,8 +653,10 @@ Bonsai's own BCF module, rather than a private format.
 
 The connection exists now (`bonsaiBridge.ts`): SketchSpace joins Bonsai's
 socket.io server on `/web`, found through `running_pid.json`, and Blender is kept
-connected by Bonsai's own *Keep Web Connection* preference. It carries template values so far
-(below). Still to ride on it: replacing manual `import:sheets` -
+connected by Bonsai's own *Keep Web Connection* preference. It carries template
+values (below), the edits made to them, and taking a drawing off a sheet or
+putting it back - each applied in Blender as an operator, so Ctrl+Z there
+undoes it. Still to ride on it: replacing manual `import:sheets` -
 `sourcePage: "drawings"` already answers with the sheet and drawing lists - and
 selecting an element in Blender from a redline, which needs its own request in
 the `sheets` handler.
@@ -655,6 +685,13 @@ is why the bridge is the long-term source for those values, not the file:
    history. The sheet's site and building, and their names and addresses, are
    editable too. Still to come: fields that are not text at all (a scale is the
    camera's).
+4. **Done - deleting a drawing takes it off the sheet** (`scheduleSheetRemovals`).
+   The layout is what places a drawing, so a delete that stopped here was
+   undone by the next sync. Bonsai removes the sheet's reference and the group;
+   the drawing itself, and any other sheet placing it, are untouched. Undo puts
+   it back where it was, with the view number it had - and only what SketchSpace
+   removed, because an element alive that the layout does not place is also what
+   a removal made in Bonsai looks like for a moment.
 
 ### Git as the issuance log
 

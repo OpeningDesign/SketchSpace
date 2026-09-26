@@ -225,6 +225,10 @@ type EditResult = {
   error?: string;
   fields?: EditableField[];
   changed?: string[];
+  /** The file of the view taken off the sheet, for the log. */
+  removed?: string;
+  /** The file of the view put back on it. */
+  added?: string;
   /** Where the sheet's layout is after the edit; it moves when a sheet is renamed. */
   layout?: string;
   kind?: string;
@@ -311,6 +315,47 @@ export const askEditableFields = async (
 ): Promise<EditableField[]> => {
   const answer = await ask(source, { type: "getEditableFields", layout, target, fields });
   return answer.fields ?? [];
+};
+
+/**
+ * Take a view off a sheet, through Bonsai's own removal.
+ *
+ * Deleting the drawing in a tool that shows the sheet cannot be the whole of
+ * it: the layout still places it, so it comes back the next time the sheet is
+ * read. Bonsai removes the sheet's reference and the group from the layout; the
+ * drawing itself, and any other sheet placing it, are untouched.
+ */
+export const askToRemoveFromSheet = async (
+  source: string,
+  layout: string,
+  target: Record<string, unknown>,
+): Promise<string> => {
+  const answer = await ask(source, { type: "removeFromSheet", layout, target });
+  return answer.removed ?? "";
+};
+
+/**
+ * Put a view back on a sheet, where it was and with the number it had.
+ *
+ * The undo of `askToRemoveFromSheet`. Bonsai's own add places a drawing in the
+ * next free spot and numbers it next, which is right for adding one and wrong
+ * for undoing, so what it had is passed back.
+ */
+export const askToAddToSheet = async (
+  source: string,
+  layout: string,
+  target: Record<string, unknown>,
+  position: { x: number; y: number } | null,
+  identification: string | null,
+): Promise<string> => {
+  const answer = await ask(source, {
+    type: "addToSheet",
+    layout,
+    target,
+    position,
+    identification,
+  });
+  return answer.added ?? "";
 };
 
 /**

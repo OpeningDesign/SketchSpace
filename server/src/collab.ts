@@ -9,6 +9,7 @@ import {
   renamePage,
   touchBoard,
 } from "./db.js";
+import { scheduleSheetRemovals } from "./bonsaiEdit.js";
 import { scheduleLayoutAutosave } from "./layoutWriter.js";
 import { addViewer, applyUpdate, getElements, removeViewer } from "./store.js";
 
@@ -197,6 +198,10 @@ export const registerCollab = (io: Server): void => {
           );
           if (touchesLayout) {
             const boardId = presence.boardId;
+            // A deleted placement is not a move, and writing the layout cannot
+            // express it: the layout is what still places the drawing. Bonsai
+            // takes it off the sheet, and that comes back through the watcher.
+            scheduleSheetRemovals(boardId);
             scheduleLayoutAutosave(boardId, (result) => {
               // Baselines moved with the write; push them to open clients so
               // their copies agree with the layout on disk.
