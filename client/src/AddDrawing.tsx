@@ -17,11 +17,17 @@ import { api, type BonsaiDrawing } from "./api";
 
 type Props = {
   layout: string;
+  /**
+   * What was placed just before this opened, if the dialog is coming back for
+   * another. Putting several drawings on a sheet is one job, so it reopens
+   * rather than making you find the menu again each time.
+   */
+  justAdded?: string | null;
   onPick: (drawing: BonsaiDrawing) => void;
   onClose: () => void;
 };
 
-export const AddDrawing = ({ layout, onPick, onClose }: Props) => {
+export const AddDrawing = ({ layout, justAdded, onPick, onClose }: Props) => {
   const [drawings, setDrawings] = useState<BonsaiDrawing[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
@@ -79,6 +85,7 @@ export const AddDrawing = ({ layout, onPick, onClose }: Props) => {
         aria-label="Add a drawing to this sheet"
       >
         <h2>Add drawing</h2>
+        {justAdded && <p className="picker__added">Added {justAdded}. Another?</p>}
 
         <input
           ref={search}
@@ -127,7 +134,12 @@ export const AddDrawing = ({ layout, onPick, onClose }: Props) => {
 
         <div className="picker__foot">
           <span className="picker__note">Then click where it should go.</span>
-          <button onClick={onClose}>Cancel</button>
+          {/*
+            "Cancel" until something has been placed, "Done" after: once a
+            drawing is on the sheet there is nothing left to cancel, and
+            offering both would be two buttons for one outcome.
+          */}
+          <button onClick={onClose}>{justAdded ? "Done" : "Cancel"}</button>
           <button
             className="picker__ok"
             disabled={!pickable(matches[active] ?? ({} as BonsaiDrawing))}

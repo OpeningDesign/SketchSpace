@@ -555,6 +555,12 @@ button:disabled {
   opacity: 0.7;
 }
 
+.picker__added {
+  margin: 0;
+  color: var(--accent);
+  font-size: 12px;
+}
+
 .picker__note,
 .picker__error {
   margin: 0;

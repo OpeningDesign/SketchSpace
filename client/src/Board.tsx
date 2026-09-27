@@ -228,6 +228,9 @@ export const Board = ({ boardId, initialPageId, onExit }: Props) => {
   const [picking, setPicking] = useState(false);
   const [placing, setPlacing] = useState<BonsaiDrawing | null>(null);
   const [placed, setPlaced] = useState<string | null>(null);
+  // What went on last, so the dialog can come back saying so. Putting several
+  // drawings on a sheet is one job, not several trips to the menu.
+  const [justAdded, setJustAdded] = useState<string | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
   // Where to draw the prompt: beside the pointer, since the pointer is what is
   // being aimed. Null until the mouse has moved, so it never appears somewhere
@@ -261,7 +264,10 @@ export const Board = ({ boardId, initialPageId, onExit }: Props) => {
           scene.x / MM_TO_PX,
           scene.y / MM_TO_PX,
         );
-        setPlaced(`added ${drawing.name}`);
+        // Straight back to the list for another. Not after a failure: the
+        // dialog would cover the reason it failed.
+        setJustAdded(drawing.name);
+        setPicking(true);
       } catch (error) {
         setPlaced((error as Error).message);
       }
@@ -340,7 +346,11 @@ export const Board = ({ boardId, initialPageId, onExit }: Props) => {
         {picking && layoutPath && (
           <AddDrawing
             layout={layoutPath}
-            onClose={() => setPicking(false)}
+            justAdded={justAdded}
+            onClose={() => {
+              setPicking(false);
+              setJustAdded(null);
+            }}
             onPick={(drawing) => {
               setPicking(false);
               setPlacing(drawing);
@@ -414,7 +424,13 @@ export const Board = ({ boardId, initialPageId, onExit }: Props) => {
             {hasBonsaiPlacements && (
               <>
                 <MainMenu.Separator />
-                <MainMenu.Item icon={addDrawingIcon} onSelect={() => setPicking(true)}>
+                <MainMenu.Item
+                  icon={addDrawingIcon}
+                  onSelect={() => {
+                    setJustAdded(null);
+                    setPicking(true);
+                  }}
+                >
                   Add drawing…
                 </MainMenu.Item>
               </>

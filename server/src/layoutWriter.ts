@@ -103,9 +103,23 @@ type SceneElement = {
  * `\bid=` also matches inside `data-id=`, which is what finds Bonsai's groups:
  * they carry no `id` of their own, so the parser falls back to `data-id` for the
  * key. Kept as it was; see NOTES.md.
+ *
+ * A key may carry an occurrence - `6288#2` - for the second group claiming a
+ * `data-id` that IfcOpenShell handed out twice (see `parseLayout`). The base is
+ * what appears in the file, the number picks which of them.
  */
 const findGroup = (svg: string, groupKey: string): { start: number; end: number } | null => {
-  const open = new RegExp(`<g\\b[^>]*\\bid="${escapeRegExp(groupKey)}"[^>]*>`).exec(svg);
+  const [base = groupKey, occurrence] = groupKey.split("#");
+  const wanted = Number(occurrence ?? 1);
+  const opens = new RegExp(`<g\\b[^>]*\\bid="${escapeRegExp(base)}"[^>]*>`, "g");
+
+  let open: RegExpExecArray | null = null;
+  for (let i = 0; i < wanted; i++) {
+    open = opens.exec(svg);
+    if (!open) {
+      return null;
+    }
+  }
   if (!open) {
     return null;
   }

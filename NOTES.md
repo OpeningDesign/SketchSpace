@@ -283,6 +283,36 @@ paper. It looked like it had not been added at all. This is not ours alone -
 Inkscape writes group transforms when you drag - so the fix composes the
 transform before measuring.
 
+**A group's key has to identify a group.** Bonsai writes no `id` on a drawing
+group, so the key falls back to `data-id` - the reference's STEP id - and
+IfcOpenShell hands out the id of a deleted entity again. Two groups on one
+sheet then shared the key 6288, and everything keyed by it collapsed onto one:
+the second drawing vanished from the page, its elements joined the first
+group's, the writer rewrote whichever came first, and the view-title over a
+section read "DETAIL 2", because the map from key to content keeps the first
+entry. That last one is what got noticed - the rest had been quietly true for
+as long as the duplicate existed. A repeat is now numbered in document order
+(`6288`, `6288#2`), and `findGroup` reads the suffix so the writer still
+reaches the right one.
+
+**A fix in the build is not a fix in the process.** The above was built,
+tested and reported as done while the running server was still the one started
+hours earlier. Worse, restarting alone did not show it: adoption seeds a
+layout's content hash without re-syncing, so a page stays as it was until
+something touches its layout. An affected board needs a change to its layout -
+or a deliberate re-sync - before a parsing fix reaches it.
+
+**An unsaved session leaves more than renamed files behind.** Adding a drawing
+to a sheet writes the group into the layout at once, while the reference
+reaches the IFC only on save - the same two halves as a rename. Close without
+saving and the layout places a drawing the reopened model has never heard of:
+Bonsai does not list it, anything reading the layout shows it, and it is
+indistinguishable from the orphan a failed removal leaves. `restore_all_moved_files`
+now takes such groups out as well as putting renamed files back, counting
+rather than matching so a drawing placed twice with two references keeps both,
+and leaving everything alone when no `data-id` matches at all - which is what a
+re-serialised model looks like.
+
 **A half-done removal that reports success compounds.** Bonsai's
 `remove_drawing_from_sheet` takes the reference out of the model whether or not
 it finds the group in the layout, and answering "removed" either way hid that:

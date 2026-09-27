@@ -500,6 +500,11 @@ Bonsai does the placing: it adds the sheet's reference and the group in the
 layout, numbering the view as it would for its own *Add Drawing To Sheet*. The
 drawing then reaches the page the way anything Bonsai changes does.
 
+The dialog comes straight back for another, with the one you just placed now
+listed as already on the sheet — filling a sheet is one job, not one trip to
+the menu per drawing. The closing button reads **Cancel** until something has
+been placed and **Done** afterwards, since by then there is nothing to cancel.
+
 ### Deleting a drawing from a sheet
 
 Select a drawing and delete it, and it is taken off the sheet in Bonsai too -

@@ -268,6 +268,8 @@ export const parseLayout = (layoutPath: string): Layout => {
   const layoutDir = path.dirname(layoutPath);
   const placements: Placement[] = [];
   const missing: string[] = [];
+  /** How many groups have claimed each key, so a repeat can be told apart. */
+  const keysSeen = new Map<string, number>();
 
   for (const g of asArray<Record<string, any>>(svg.g)) {
     const dataType = String(g["@_data-type"] ?? "");
@@ -283,9 +285,23 @@ export const parseLayout = (layoutPath: string): Layout => {
       (g["@_data-document"] as string | undefined) ??
       null;
     const stepId = (g["@_data-id"] as string | undefined) ?? null;
-    // Inkscape and Bonsai both give every <g> an id; it is the stable handle
-    // for rewriting one group's transform without touching the rest of the file.
-    const groupKey = String(g["@_id"] ?? stepId ?? `g${placements.length}`);
+    // The handle for rewriting one group without touching the rest of the file.
+    // Inkscape writes an `id`; Bonsai writes none, so this is usually the
+    // `data-id` - the reference's STEP id.
+    //
+    // Which is not unique. IfcOpenShell reuses the id of a deleted entity, so a
+    // group left behind by a removal that could not find it can carry the id a
+    // later drawing is given. Two groups then share a key, and everything keyed
+    // by it collapses: both view-titles take the first one's values (a title
+    // reading "DETAIL 2" over a section), their elements share a group and move
+    // together, and the writer rewrites whichever comes first. Seen in the
+    // field. So a repeat is numbered, in document order.
+    let groupKey = String(g["@_id"] ?? stepId ?? `g${placements.length}`);
+    const seen = (keysSeen.get(groupKey) ?? 0) + 1;
+    keysSeen.set(groupKey, seen);
+    if (seen > 1) {
+      groupKey = `${groupKey}#${seen}`;
+    }
 
     for (const img of asArray<Record<string, any>>(g.image)) {
       const rawHref = attr(img, "href") ?? "";

@@ -188,6 +188,10 @@ titleblocks". What bites:
   involved - the item is in the `MainMenu` we already compose, and the click is
   a capture-phase listener on the canvas container converted with
   `viewportCoordsToSceneCoords`.
+- **A group key may carry `#2`.** `data-id` is not unique - IfcOpenShell reuses
+  the ids of deleted entities - so `parseLayout` numbers repeats in document
+  order and `findGroup` reads the suffix. Anything matching a key to a group
+  must go through those two.
 - **Ask the layout, not only the model, before adding a drawing to a sheet.**
   A removal that could not find the group leaves the layout placing a drawing
   the model has forgotten; a model-only check then permits a duplicate, and
