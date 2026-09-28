@@ -322,11 +322,24 @@ app.post(
   "/api/bonsai/place",
   requireAuth,
   withLayout(async (layout, req) => {
-    const { globalId, x, y } = req.body as { globalId?: unknown; x?: unknown; y?: unknown };
-    if (typeof globalId !== "string" || typeof x !== "number" || typeof y !== "number") {
+    const { globalId, path, x, y } = req.body as {
+      globalId?: unknown;
+      path?: unknown;
+      x?: unknown;
+      y?: unknown;
+    };
+    // Either handle will do: a drawing has a GlobalId, a schedule or a
+    // reference only the file it is placed from.
+    const target =
+      typeof globalId === "string" && globalId
+        ? { globalId }
+        : typeof path === "string" && path
+          ? { path }
+          : null;
+    if (!target || typeof x !== "number" || typeof y !== "number") {
       throw new Error("a drawing and a point are needed");
     }
-    return { added: await placeDrawing(layout, globalId, { x, y }) };
+    return placeDrawing(layout, target, { x, y });
   }),
 );
 

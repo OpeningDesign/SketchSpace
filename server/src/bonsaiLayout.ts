@@ -251,8 +251,36 @@ export const inlineNestedImages = (
   return { svg: out, inlined, missing };
 };
 
+/**
+ * A layout's text, retried while it looks half-written.
+ *
+ * Bonsai writes a layout with ElementTree's `tree.write`, which truncates the
+ * file and then fills it, so a watcher that reads on the first change event can
+ * catch it empty or cut short. Seen in the log as `has no <svg> root` during a
+ * run of removals - harmless there, but a parse that fails is a layout that
+ * looks like it places nothing, which is the same shape as every group having
+ * been deleted.
+ *
+ * Blocking waits, because every caller is synchronous, and only on the failing
+ * path: a whole file ends with `</svg>`, and that is cheap to check.
+ */
+const readWholeLayout = (layoutPath: string, attempts = 4, waitMs = 40): string => {
+  let xml = "";
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    xml = readFileSync(layoutPath, "utf8");
+    if (xml.trimEnd().endsWith("</svg>")) {
+      return xml;
+    }
+    if (attempt < attempts - 1) {
+      // Sleep without an event loop turn; the callers cannot await.
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, waitMs);
+    }
+  }
+  return xml;
+};
+
 export const parseLayout = (layoutPath: string): Layout => {
-  const xml = readFileSync(layoutPath, "utf8");
+  const xml = readWholeLayout(layoutPath);
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: "@_",

@@ -526,6 +526,21 @@ button:disabled {
   border-radius: 8px;
 }
 
+/* Where the kind changes. Sticky, so scrolling a long list never leaves you
+   looking at rows without knowing which of the three you are among. */
+.picker__kind {
+  position: sticky;
+  top: 0;
+  margin: 0;
+  padding: 6px 10px 3px;
+  background: var(--surface);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
 .picker__item {
   display: flex;
   justify-content: space-between;
@@ -553,12 +568,6 @@ button:disabled {
   flex: none;
   font-size: 12px;
   opacity: 0.7;
-}
-
-.picker__added {
-  margin: 0;
-  color: var(--accent);
-  font-size: 12px;
 }
 
 .picker__note,

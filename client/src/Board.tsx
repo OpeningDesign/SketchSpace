@@ -227,10 +227,9 @@ export const Board = ({ boardId, initialPageId, onExit }: Props) => {
   // position comes from, so the dialog closes before it is asked for.
   const [picking, setPicking] = useState(false);
   const [placing, setPlacing] = useState<BonsaiDrawing | null>(null);
+  // What just happened, said briefly and then gone: what was placed, or why it
+  // could not be.
   const [placed, setPlaced] = useState<string | null>(null);
-  // What went on last, so the dialog can come back saying so. Putting several
-  // drawings on a sheet is one job, not several trips to the menu.
-  const [justAdded, setJustAdded] = useState<string | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
   // Where to draw the prompt: beside the pointer, since the pointer is what is
   // being aimed. Null until the mouse has moved, so it never appears somewhere
@@ -258,16 +257,24 @@ export const Board = ({ boardId, initialPageId, onExit }: Props) => {
       const drawing = placing;
       setPlacing(null);
       try {
-        await api.placeBonsaiDrawing(
+        const answer = await api.placeBonsaiDrawing(
           layoutPath,
-          drawing.globalId,
+          drawing,
           scene.x / MM_TO_PX,
           scene.y / MM_TO_PX,
         );
-        // Straight back to the list for another. Not after a failure: the
-        // dialog would cover the reason it failed.
-        setJustAdded(drawing.name);
-        setPicking(true);
+        // Said and then forgotten. The dialog does not reopen: Shift+A is
+        // quicker than a button, and coming back uninvited is in the way of
+        // anyone who wanted one drawing.
+        //
+        // A placement Bonsai could not move is on the sheet at its own next
+        // free spot, not where the click was. That has to be said: silently
+        // ignoring the click is what it looked like from here.
+        setPlaced(
+          answer.moved === false
+            ? `Added ${drawing.name}, but Bonsai placed it at its own spot`
+            : `Added ${drawing.name}`,
+        );
       } catch (error) {
         setPlaced((error as Error).message);
       }
@@ -296,6 +303,46 @@ export const Board = ({ boardId, initialPageId, onExit }: Props) => {
       window.removeEventListener("keydown", cancel);
     };
   }, [placing, place]);
+
+  /**
+   * Shift+A opens the picker, the same as the menu item.
+   *
+   * Free in the editor: its only shift-bound tool is Shift+X, and a plain
+   * letter tool (A is the arrow) is matched only without shift, so this takes
+   * nothing away. Ctrl and Alt are excluded so Ctrl+A still selects all.
+   *
+   * Not while typing - the editor edits text in a real textarea, and the
+   * search, command palette and our own filter box are inputs - and not while
+   * the picker is open or a drawing is waiting to be placed, where Escape is
+   * the key that means something.
+   */
+  useEffect(() => {
+    if (!hasBonsaiPlacements || picking || placing) {
+      return;
+    }
+    const open = (event: KeyboardEvent) => {
+      if (
+        event.key.toLowerCase() !== "a" ||
+        !event.shiftKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.altKey
+      ) {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.isContentEditable ||
+        ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName ?? "")
+      ) {
+        return;
+      }
+      event.preventDefault();
+      setPicking(true);
+    };
+    window.addEventListener("keydown", open);
+    return () => window.removeEventListener("keydown", open);
+  }, [hasBonsaiPlacements, picking, placing]);
 
   useEffect(() => {
     if (!placed) {
@@ -346,11 +393,7 @@ export const Board = ({ boardId, initialPageId, onExit }: Props) => {
         {picking && layoutPath && (
           <AddDrawing
             layout={layoutPath}
-            justAdded={justAdded}
-            onClose={() => {
-              setPicking(false);
-              setJustAdded(null);
-            }}
+            onClose={() => setPicking(false)}
             onPick={(drawing) => {
               setPicking(false);
               setPlacing(drawing);
@@ -426,12 +469,10 @@ export const Board = ({ boardId, initialPageId, onExit }: Props) => {
                 <MainMenu.Separator />
                 <MainMenu.Item
                   icon={addDrawingIcon}
-                  onSelect={() => {
-                    setJustAdded(null);
-                    setPicking(true);
-                  }}
+                  shortcut="Shift+A"
+                  onSelect={() => setPicking(true)}
                 >
-                  Add drawing…
+                  Add to Sheet…
                 </MainMenu.Item>
               </>
             )}

@@ -485,25 +485,39 @@ IFC does not allow an empty one. A site and a building that share one address
 object share the edit as well. A field with no site or building behind it is
 refused, with a message saying to pick one.
 
-### Adding a drawing to a sheet
+### Adding a drawing, schedule or reference to a sheet
 
-**Add drawing…** in the ☰ menu lists the model's drawings. Type to filter, pick
-one, and then click where it should go on the sheet — that click is the
-position, so it is asked for after the choice rather than before. Escape
+**Add to Sheet…** in the ☰ menu — or <kbd>Shift</kbd>+<kbd>A</kbd> — lists what
+the model can put on this sheet. Type
+to filter, pick one, and then click where it should go on the sheet — that click
+is the position, so it is asked for after the choice rather than before. Escape
 cancels.
 
-A drawing already on this sheet, or one that has never been generated, is shown
+Where the file a thing is placed from is not simply its name, the file is shown
+beside it. A schedule's document name and its spreadsheet drift apart — one
+called `THINGER SCHEDULE` can live in `DOOR SCHEDULE.ods` — and Bonsai's own
+sheet list names it by the file, so showing both is what makes the same row
+recognisable in either tool.
+
+**Drawings, schedules and references** are all listed, under a heading each and
+in that order — the three things a sheet can place, and the three Bonsai has its
+own *Add … To Sheet* command for. The filter matches the kind as well as the
+name, so typing `schedule` narrows to the schedules. A drawing is named to
+Bonsai by its IFC GlobalId; a schedule and a reference are documents and have
+none, so they are named by the SVG they are placed from.
+
+One already on this sheet, or one that has never been generated, is shown
 greyed with the reason. Both are refusals Bonsai would make, and a reason given
-up front beats one after pressing OK.
+up front beats one after pressing OK. A schedule reads *not rendered yet*
+instead, since its SVG comes from its spreadsheet rather than from a camera.
 
 Bonsai does the placing: it adds the sheet's reference and the group in the
-layout, numbering the view as it would for its own *Add Drawing To Sheet*. The
-drawing then reaches the page the way anything Bonsai changes does.
+layout, numbering the view as it would for its own *Add … To Sheet*. It then
+reaches the page the way anything Bonsai changes does.
 
-The dialog comes straight back for another, with the one you just placed now
-listed as already on the sheet — filling a sheet is one job, not one trip to
-the menu per drawing. The closing button reads **Cancel** until something has
-been placed and **Done** afterwards, since by then there is nothing to cancel.
+A note says what was placed and then goes. The dialog does not reopen by itself:
+<kbd>Shift</kbd>+<kbd>A</kbd> is quicker than any button for filling a sheet, and
+coming back uninvited is in the way of anyone who wanted one drawing.
 
 ### Deleting a drawing from a sheet
 

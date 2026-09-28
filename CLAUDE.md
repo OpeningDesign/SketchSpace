@@ -183,11 +183,37 @@ titleblocks". What bites:
   next sync. `scheduleSheetRemovals` asks the layout which groups have no living
   element left, which makes it idempotent - once removed, there is nothing left
   to ask about.
-- **"Add drawing" is two steps on purpose:** pick, then click. The click is the
+- **Reopening a model rolls back the model, never the layout files.** So the two
+  are reconciled both ways on open (`restore_all_moved_files`): extra groups out,
+  missing groups back. Never assume the model is the only thing that can be
+  ahead.
+- **`parseLayout` retries while the file does not end in `</svg>`.** Bonsai's
+  `tree.write` truncates before filling, and a parse failure looks exactly like a
+  layout that places nothing.
+- **A placement reports whether it moved.** `/api/bonsai/place` answers
+  `moved`, and `false` means Bonsai added it at its own next free spot rather
+  than at the click. Never report a placement as done without it.
+- **Shift+A is ours and free.** The editor binds one shift-letter tool
+  (Shift+X, autoshape) and matches plain letter tools only without shift, so a
+  window listener can have it. It is skipped while an input, textarea or
+  contenteditable has focus, and while the picker is open or something is
+  waiting to be placed.
+- **"Add to Sheet" is two steps on purpose:** pick, then click. The click is the
   position, so the dialog closes before it is taken. No editor patch is
   involved - the item is in the `MainMenu` we already compose, and the click is
   a capture-phase listener on the canvas container converted with
   `viewportCoordsToSceneCoords`.
+- **Bonsai names a schedule or reference on a sheet by its file, not by the
+  document's `Name`.** `import_sheets` builds `drawing_name_by_location` from
+  `IfcAnnotation`s only, so a document row falls back to
+  `os.path.basename(reference.Location)`. The two drift: `THINGER SCHEDULE` in
+  `DOOR SCHEDULE.ods` is a real case from the troubleshooting model. The picker
+  shows the file alongside the name when they differ, rather than picking a side.
+- **A placement is named by GlobalId or by file, never assume the first.** The
+  list holds drawings, schedules and references; a schedule and a reference are
+  `IfcDocumentInformation`, so their `globalId` is empty and `/api/bonsai/place`
+  takes `path` instead. `BonsaiDrawing.kind` says which, and `d.file` is also
+  the React key, since `globalId` is not unique when it is empty.
 - **A group key may carry `#2`.** `data-id` is not unique - IfcOpenShell reuses
   the ids of deleted entities - so `parseLayout` numbers repeats in document
   order and `findGroup` reads the suffix. Anything matching a key to a group

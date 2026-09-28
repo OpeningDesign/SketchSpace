@@ -434,7 +434,7 @@ const applySheetRevivals = async (
       );
       removedByUs.delete(key);
       console.log(
-        `[sketchspace] put ${added || groupKey} back on ${path.basename(layoutPath)} in Bonsai`,
+        `[sketchspace] put ${added.added || groupKey} back on ${path.basename(layoutPath)} in Bonsai`,
       );
     } catch (error) {
       console.warn(
@@ -491,24 +491,33 @@ export const drawingsFor = async (
 };
 
 /**
- * Place a drawing on a sheet at a point on the canvas.
+ * Place a drawing, schedule or reference on a sheet at a point on the canvas.
  *
  * The same request undo uses, with no view number: this is a new placement, so
- * Bonsai numbers it next as it would for its own Add Drawing To Sheet.
+ * Bonsai numbers it next as it would for its own Add … To Sheet.
+ *
+ * A drawing is named by its GlobalId, a schedule or reference by the file it is
+ * placed from - they are documents and have no GlobalId of their own. Bonsai
+ * takes either handle, and works out which of the three it is from what it
+ * finds.
  */
 export const placeDrawing = async (
   layout: string,
-  globalId: string,
+  target: { globalId?: string; path?: string },
   position: { x: number; y: number },
-): Promise<string> => addToSheet(layout, { globalId }, position, null);
+) => addToSheet(layout, target, position, null);
 
-/** Put one view back on its sheet, where it was. Resolves with the file added. */
+/**
+ * Put one view on a sheet. Resolves with the file added, and with whether a
+ * requested position was applied - a placement that ignored the point asked for
+ * is not a placement that worked.
+ */
 export const addToSheet = async (
   layout: string,
   target: Record<string, unknown>,
   position: { x: number; y: number } | null,
   identification: string | null,
-): Promise<string> => {
+): Promise<{ added: string; moved?: boolean }> => {
   const source = liveSourceForLayout(layout);
   if (!source) {
     throw new Error("Blender is not connected - open this model in Blender to change it");

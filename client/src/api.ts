@@ -18,6 +18,8 @@ export type EditableField = {
 };
 
 export type BonsaiDrawing = {
+  /** A drawing, or a schedule or reference - both documents, with no GlobalId. */
+  kind: "drawing" | "schedule" | "reference";
   globalId: string;
   name: string;
   file: string;
@@ -112,13 +114,26 @@ export const api = {
       body: JSON.stringify({ layout }),
     }).then((r) => json<{ connected: boolean; drawings: BonsaiDrawing[] }>(r)),
 
-  /** Place one on the sheet, at a point in millimetres. */
-  placeBonsaiDrawing: (layout: string, globalId: string, x: number, y: number) =>
+  /**
+   * Place one on the sheet, at a point in millimetres.
+   *
+   * Named by GlobalId where there is one, and by file where there is not: a
+   * schedule and a reference are documents, so the file they are placed from is
+   * all they have.
+   */
+  placeBonsaiDrawing: (layout: string, drawing: BonsaiDrawing, x: number, y: number) =>
     fetch("/api/bonsai/place", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ layout, globalId, x, y }),
-    }).then((r) => json<{ added: string }>(r)),
+      body: JSON.stringify({
+        layout,
+        globalId: drawing.globalId,
+        path: drawing.globalId ? undefined : drawing.file,
+        x,
+        y,
+      }),
+      // `moved: false` means Bonsai placed it, but not at the point asked for.
+    }).then((r) => json<{ added: string; moved?: boolean }>(r)),
 
   fetchFiles: (boardId: string, ids: string[]) =>
     fetch(

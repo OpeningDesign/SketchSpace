@@ -236,6 +236,11 @@ type EditResult = {
   /** Where the sheet's layout is after the edit; it moves when a sheet is renamed. */
   layout?: string;
   kind?: string;
+  /**
+   * Whether a requested position was applied. False means the placement sits
+   * where Bonsai's own layout put it - not where it was asked to go.
+   */
+  moved?: boolean;
 };
 
 /** One field of a view-title or titleblock, as Bonsai reports it. */
@@ -340,6 +345,12 @@ export const askToRemoveFromSheet = async (
 
 /** A drawing in the model, as somewhere to add one from. */
 export type BonsaiDrawing = {
+  /**
+   * Which of the three things a sheet can place this is. A schedule and a
+   * reference are documents, not views, so they have no GlobalId and are named
+   * to `addToSheet` by `file` instead.
+   */
+  kind: "drawing" | "schedule" | "reference";
   globalId: string;
   name: string;
   file: string;
@@ -349,7 +360,7 @@ export type BonsaiDrawing = {
   generated: boolean;
 };
 
-/** Every drawing in the model this layout belongs to. */
+/** Everything the model could put on this sheet: drawings, schedules, references. */
 export const askForDrawings = async (source: string, layout: string): Promise<BonsaiDrawing[]> => {
   const answer = await ask(source, { type: "listDrawings", layout });
   return answer.drawings ?? [];
@@ -368,7 +379,7 @@ export const askToAddToSheet = async (
   target: Record<string, unknown>,
   position: { x: number; y: number } | null,
   identification: string | null,
-): Promise<string> => {
+): Promise<{ added: string; moved?: boolean }> => {
   const answer = await ask(source, {
     type: "addToSheet",
     layout,
@@ -376,7 +387,7 @@ export const askToAddToSheet = async (
     position,
     identification,
   });
-  return answer.added ?? "";
+  return { added: answer.added ?? "", moved: answer.moved };
 };
 
 /**

@@ -748,13 +748,62 @@ is why the bridge is the long-term source for those values, not the file:
    it back where it was, with the view number it had - and only what SketchSpace
    removed, because an element alive that the layout does not place is also what
    a removal made in Bonsai looks like for a moment.
-5. **Done - adding a drawing to a sheet** (`AddDrawing.tsx`). The model's
-   drawings, filtered by typing; the click that follows says where it goes.
-   Bonsai places it, reusing the request undo uses - which is why placing at an
-   arbitrary point was already solved. The editor has no hook for adding a
-   canvas context-menu item (`getContextMenuItems` is a hardcoded list and
-   `contextMenu` is internal `AppState`), so this went in the main menu we
-   already compose rather than behind a patch to the vendored editor.
+5. **Done - adding to a sheet** (`AddDrawing.tsx`, *Add to Sheet…*). The model's
+   drawings, schedules and references, filtered by typing; the click that
+   follows says where it goes. Bonsai places it, reusing the request undo uses -
+   which is why placing at an arbitrary point was already solved. The editor has
+   no hook for adding a canvas context-menu item (`getContextMenuItems` is a
+   hardcoded list and `contextMenu` is internal `AppState`), so this went in the
+   main menu we already compose rather than behind a patch to the vendored
+   editor. Schedules and references cost almost nothing beyond the listing: a
+   sheet places all three as a `<g>` with an `<image>`, and the only differences
+   are which Bonsai builder draws it and that a document, having no GlobalId, is
+   named by its file.
+
+### An ElementTree element that was found is still falsy
+
+`group.find(foreground) or group.find(content)` looks like a fallback and is a
+bug: an `<image>` has no child elements, and `Element.__bool__` is `len(self) !=
+0`, so the element it *did* find is discarded and the second `find` runs anyway
+(giving `None`, since a drawing has no `content`). Python 3.12 warns about it;
+nothing else does.
+
+This shipped inside the change that taught `_move_group_to` about schedules, and
+the symptom was that placements stopped landing where they were clicked — they
+sat at the next free spot Bonsai's own layout chose, with nothing said. Two
+lessons, not one: use `is None` for every `find`, and **a position asked for and
+not applied has to be reported** (`add_to_sheet` now answers `moved`), because a
+silent fallback to somewhere plausible is indistinguishable from working.
+
+### A sheet is a model and a file, and only one of them is undoable
+
+Both halves came apart in one afternoon. Drawings deleted in SketchSpace were
+taken off their sheets — reference out of the model, group out of the layout,
+which is right. Then Blender was restarted without the IFC having been saved, so
+the model went back to the last save and placed three drawings again. The layout
+files are not in the IFC and did not come back: Bonsai listed three drawings, the
+sheets were empty, and nothing anywhere said the two disagreed.
+
+Reopening a model rolls back the model and never the files. So the layout has to
+be reconciled against the reopened model in **both** directions, and
+`restore_all_moved_files` now does: `remove_unreferenced_groups` takes out groups
+the model cannot account for, and `restore_unplaced_references` puts back groups
+for references that have none. Removals run first, so a group merely in the wrong
+place is not counted twice. What goes back lands at the next free spot — where it
+sat is not recoverable, because the group that knew is the thing that went.
+
+The empty direction is the harder one to notice, which is why it went unreported
+for two hours: a stray drawing looks wrong, and an empty sheet looks like a sheet.
+
+### A layout can be read while Bonsai is writing it
+
+ElementTree's `tree.write` truncates the file and then fills it, so a watcher
+reading on the first change event can catch it empty — `has no <svg> root` in the
+log. `parseLayout` now retries a few times while the text does not end in
+`</svg>`, blocking, because every caller is synchronous and the writer is another
+process. It mattered more than it looked: a layout that fails to parse is a
+layout that places nothing, which is the same shape as every group having been
+deleted.
 
 ### Git as the issuance log
 
