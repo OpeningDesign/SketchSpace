@@ -519,6 +519,11 @@ A note says what was placed and then goes. The dialog does not reopen by itself:
 <kbd>Shift</kbd>+<kbd>A</kbd> is quicker than any button for filling a sheet, and
 coming back uninvited is in the way of anyone who wanted one drawing.
 
+If the note reads **"Added X, but Bonsai placed it at its own spot"**, the thing
+is on the sheet but not where you clicked — Bonsai added it and could not then
+find the group to move. It is said rather than swallowed because a placement that
+lands at the next free spot looks close enough to a placement that worked.
+
 ### Deleting a drawing from a sheet
 
 Select a drawing and delete it, and it is taken off the sheet in Bonsai too -
@@ -560,6 +565,25 @@ save is in Blender.
 [IfcOpenShell#9557](https://github.com/IfcOpenShell/IfcOpenShell/pull/9557)
 recovers from it by putting the files back under the names the reopened model
 uses; without that patch the fix is to rename them back by hand.
+
+### When Bonsai and the sheet disagree
+
+The layout file is what SketchSpace shows; the IFC is what Bonsai lists. Adding
+or removing a drawing writes the layout at once, but the model only keeps it when
+the IFC is saved — so closing Blender without saving rolls the model back and
+leaves the layout where it was. The two can end up disagreeing either way round:
+a layout placing a drawing the model has forgotten, or a model listing one whose
+group has gone.
+
+Bonsai reconciles both directions when it opens a layout or a sheet, and reports
+what it changed. Groups the model cannot account for are taken out; references
+with no group get one back, at the next free spot rather than where it used to
+sit, because the group that knew the position is the thing that went. **Save the
+IFC afterwards**, or the next reopen has the same work to do.
+
+So if a sheet here is missing something Bonsai lists, open that sheet in Bonsai
+and save. **Add to Sheet…** will not help: the model still references the
+drawing, so it is listed as *already on this sheet* and refused.
 
 ### Sheet identity is content, not filename
 
