@@ -24,6 +24,7 @@ import {
   sheetName,
 } from "./layoutImport.js";
 import { parseLayout, takeHeadReadCost } from "./bonsaiLayout.js";
+import { takeDrawingSizeCost } from "./drawingSizes.js";
 import { onLayoutValuesChanged, primeLayoutValues } from "./ifcValues.js";
 import { drawingSizesChanged, rebindLayoutPath, syncPageWithLayout } from "./layoutSync.js";
 import { setCurrentWork, since, timed } from "./log.js";
@@ -544,10 +545,14 @@ const runSoon = (jobs: Job[], queueLabel?: string): void => {
         // that land mid-session rather than at startup, where the same cold-open
         // cost shows up as the editor going unresponsive.
         const queueHeads = takeHeadReadCost();
-        if (queueHeads.reads > 0) {
+        const queueSizes = takeDrawingSizeCost();
+        if (queueSizes.hits + queueSizes.misses > 0) {
           console.log(
-            `[sketchspace] ${queueLabel}: ${queueHeads.reads} drawing head read(s) in ` +
-              `${(queueHeads.ms / 1000).toFixed(1)}s of the above`,
+            `[sketchspace] ${queueLabel}: drawing sizes ${queueSizes.hits} cached, ` +
+              `${queueSizes.misses} read` +
+              (queueHeads.reads > 0
+                ? `, ${(queueHeads.ms / 1000).toFixed(1)}s of the above`
+                : ""),
           );
         }
       }
@@ -733,12 +738,15 @@ const refreshWatches = (
   // included because a rescan that keeps re-adopting layouts would pay it again
   // every thirty seconds.
   const heads = takeHeadReadCost();
-  if (heads.reads > 0) {
+  const sizes = takeDrawingSizeCost();
+  if (sizes.hits + sizes.misses + sizes.missing > 0) {
     console.log(
-      `[sketchspace] drawing size checks: ${heads.reads} head read(s) for ` +
-        `${adopted.length} newly adopted layout(s) in ${(heads.ms / 1000).toFixed(1)}s ` +
-        `(${(heads.ms / heads.reads).toFixed(0)}ms each; slowest ${heads.slowestMs}ms ` +
-        `${path.basename(heads.slowest)})`,
+      `[sketchspace] drawing size checks for ${adopted.length} newly adopted layout(s): ` +
+        `${sizes.hits} cached, ${sizes.misses} read, ${sizes.missing} missing` +
+        (heads.reads > 0
+          ? `; ${(heads.ms / 1000).toFixed(1)}s of reads (${(heads.ms / heads.reads).toFixed(0)}ms ` +
+            `each, slowest ${heads.slowestMs}ms ${path.basename(heads.slowest)})`
+          : ""),
     );
   }
   for (const layoutPath of resized) {

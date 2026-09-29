@@ -19,7 +19,8 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { writeAsset } from "./assets.js";
-import { inlineNestedImages, intrinsicSizeMm, MM_TO_PX, parseLayout } from "./bonsaiLayout.js";
+import { inlineNestedImages, MM_TO_PX, parseLayout } from "./bonsaiLayout.js";
+import { drawingSizeMm } from "./drawingSizes.js";
 import { newId, recordFile } from "./db.js";
 import { indexBetween } from "./fracIndex.js";
 import { getLayoutValues } from "./ifcValues.js";
@@ -214,7 +215,7 @@ const drawingDeltas = (layout: Layout): Map<string, { width: number; height: num
     if (p.kind !== "drawing" || p.role !== "foreground") {
       continue;
     }
-    const size = intrinsicSizeMm(p.href);
+    const size = drawingSizeMm(p.href);
     if (!size) {
       continue;
     }

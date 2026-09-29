@@ -108,18 +108,6 @@ const mm = (v: unknown): number => {
 };
 
 /**
- * The size an SVG declares on its own root element, in millimetres.
- *
- * A drawing regenerated at a different size does not resize its placement: the
- * layout keeps the old width and height until Bonsai reflows the sheet
- * (`update_sheet_drawing_sizes`, run by Open Layout and Create Sheets). Until
- * then the layout's box and the drawing disagree, and drawing one into the
- * other stretches it - so the file's own size is what gets used.
- *
- * Only the head of the file is read: these attributes are on the root element,
- * and a drawing can be megabytes.
- */
-/**
  * What the head reads have cost since the last report.
  *
  * Reading 8KB of each drawing is cheap work and was still 28s of a 43s startup,
@@ -139,6 +127,22 @@ export const takeHeadReadCost = (): typeof headReadCost => {
   return taken;
 };
 
+/**
+ * The size an SVG declares on its own root element, in millimetres.
+ *
+ * A drawing regenerated at a different size does not resize its placement: the
+ * layout keeps the old width and height until Bonsai reflows the sheet
+ * (`update_sheet_drawing_sizes`, run by Open Layout and Create Sheets). Until
+ * then the layout's box and the drawing disagree, and drawing one into the
+ * other stretches it - so the file's own size is what gets used.
+ *
+ * Only the head of the file is read: these attributes are on the root element,
+ * and a drawing can be megabytes.
+ */
+/**
+ * Callers go through `drawingSizes.drawingSizeMm`, which caches this against the
+ * file's mtime: on a Dropbox path the open, not the parsing, is what costs.
+ */
 export const intrinsicSizeMm = (
   file: string,
 ): { width: number; height: number } | null => {

@@ -871,6 +871,29 @@ these reads — 245 in the size pass, 281 in the resync jobs.
 `open`+read on the same directory. So a size cache keyed on mtime and size pays
 off, because validating an entry is ~30x cheaper than rebuilding it.
 
+### And the fix: stat instead of open
+
+`drawingSizes.ts` caches each drawing's declared size against the file's mtime
+and size, in memory and in `<dataDir>/drawing-sizes.json`, so a restart starts
+warm rather than rebuilding what has not changed. `intrinsicSizeMm` stays the
+plain reader and is now only called on a miss; `layoutSync` goes through
+`drawingSizeMm`.
+
+The startup then pays one stat per drawing (0.5-0.7ms cold) instead of one open
+(17-135ms cold), which is the whole of the 28 seconds. A drawing regenerated at a
+new size changes mtime, so it is measured again; a file that cannot be measured is
+remembered as unmeasurable so it is not reopened every pass; a missing file caches
+nothing. The cache lives in the data directory, which is outside Dropbox, so it is
+not itself behind the filter driver.
+
+The one way it can be wrong: a drawing whose dimensions change while its mtime
+*and* byte size stay identical. Bonsai rewrites the file when it regenerates one,
+so mtime moves. Worst case is a stale box until the next real change, and deleting
+the cache file resets it.
+
+`drawing size checks` now reports `N cached, M read`, so whether it is working is
+a line in the log rather than a claim here.
+
 Two lessons beyond the numbers. **The counter has to be zeroed by the pass that
 reports it** — the first version was global, so a pass that made 245 reads
 reported 569 of them, having swept up the resync jobs' reads too. And **a
