@@ -24,7 +24,7 @@ import {
 } from "./assets.js";
 import { boardRoom, pageRoom, registerCollab } from "./collab.js";
 import { config } from "./config.js";
-import { since, startTimestampingLogs } from "./log.js";
+import { since, startLagWatchdog, startTimestampingLogs } from "./log.js";
 import {
   createBoard,
   deleteBoard,
@@ -50,6 +50,10 @@ import { startLayoutWatcher } from "./layoutWatcher.js";
 import { flushAll } from "./store.js";
 
 startTimestampingLogs();
+// From here on, anything that holds the event loop for more than a moment says so
+// and names the work in flight. Cheap, unref'd, and the only way a "it hung"
+// report turns into a line in the log.
+startLagWatchdog();
 const bootedAt = Date.now();
 
 const here = path.dirname(fileURLToPath(import.meta.url));

@@ -23,9 +23,10 @@ import {
   resolveLayouts,
   sheetName,
 } from "./layoutImport.js";
-import { parseLayout } from "./bonsaiLayout.js";
+import { parseLayout, takeHeadReadCost } from "./bonsaiLayout.js";
 import { onLayoutValuesChanged, primeLayoutValues } from "./ifcValues.js";
 import { drawingSizesChanged, rebindLayoutPath, syncPageWithLayout } from "./layoutSync.js";
+import { setCurrentWork, since, timed } from "./log.js";
 import { applyUpdate, getElements } from "./store.js";
 
 import type { SyncElement } from "./types.js";
@@ -66,7 +67,28 @@ export const noteSelfWrite = (layoutPath: string, content: string): void => {
 type PageRef = { pageId: string; boardId: string };
 
 /** Which pages reference which layout, discovered from stored scene data. */
+/**
+ * How much this has cost since the last report.
+ *
+ * It reads every bonsai page's whole element array out of SQLite - `LIKE
+ * '%"bonsai"%'` cannot use an index - and JSON.parses each one, and it is called
+ * once per resync as well as once per rescan. At startup that is once per layout
+ * adopted, so the work is quadratic in the number of sheets. Whether that
+ * matters here is a measurement, not a guess, so measure it.
+ */
+const scanCost = { calls: 0, ms: 0, rows: 0 };
+
+const takeScanCost = (): { calls: number; ms: number; rows: number } => {
+  const taken = { ...scanCost };
+  scanCost.calls = 0;
+  scanCost.ms = 0;
+  scanCost.rows = 0;
+  return taken;
+};
+
 const scanLayouts = (): Map<string, PageRef[]> => {
+  const scanStarted = Date.now();
+  scanCost.calls++;
   const found = new Map<string, PageRef[]>();
   const rows = db
     .prepare(
@@ -103,6 +125,8 @@ const scanLayouts = (): Map<string, PageRef[]> => {
       }
     }
   }
+  scanCost.ms += Date.now() - scanStarted;
+  scanCost.rows += rows.length;
   return found;
 };
 
@@ -179,9 +203,13 @@ const resyncLayoutAssets = (
   }
   for (const { pageId, boardId } of scanLayouts().get(layoutPath) ?? []) {
     try {
-      const summary = syncPageWithLayout(getElements(pageId), boardId, layoutPath, {
-        templatesOnly,
-      });
+      // The expensive half of a resync: it re-reads and re-hashes every drawing
+      // the sheet places, which on a site plan is tens of megabytes.
+      const summary = timed(`sync ${path.basename(layoutPath)}`, () =>
+        syncPageWithLayout(getElements(pageId), boardId, layoutPath, {
+          templatesOnly,
+        }),
+      );
       if (summary.changed.length === 0) {
         continue;
       }
@@ -476,17 +504,70 @@ const reconcileDirectory = (
   }
 };
 
-/** Run jobs one per tick, so a long queue never blocks serving. */
-const runSoon = (jobs: (() => void)[]): void => {
+/**
+ * A unit of deferred work, named so the log can say which one was slow.
+ *
+ * The label is the whole point: at startup this queue is every sheet of every
+ * board, and a total for the lot is not something you can act on.
+ */
+type Job = { label: string; run: () => void };
+
+/**
+ * Run jobs one per tick, so a long queue never blocks serving.
+ *
+ * Each is timed, the slow ones are named as they happen, and the queue reports a
+ * ranked summary when it drains. `setCurrentWork` lets the lag watchdog name
+ * whatever was holding the loop if one job blocks for seconds.
+ */
+const runSoon = (jobs: Job[], queueLabel?: string): void => {
+  const started = Date.now();
+  const took: { label: string; ms: number }[] = [];
+  const total = jobs.length;
+
   const next = () => {
     const job = jobs.shift();
     if (!job) {
+      if (queueLabel && total > 0) {
+        const slowest = [...took].sort((a, b) => b.ms - a.ms).slice(0, 5);
+        console.log(
+          `[sketchspace] ${queueLabel}: ${total} job(s) in ${since(started)}. Slowest: ` +
+            slowest.map((j) => `${j.label} ${(j.ms / 1000).toFixed(1)}s`).join(", "),
+        );
+        // Reported beside the queue it belongs to. If this is a large share of
+        // the total, the fix is to scan once per pass instead of once per job.
+        const scan = takeScanCost();
+        console.log(
+          `[sketchspace] ${queueLabel}: scanLayouts ran ${scan.calls}x over ` +
+            `${scan.rows} page row(s), ${(scan.ms / 1000).toFixed(1)}s of the above`,
+        );
+        // A resync re-measures every drawing on the sheet. These are the reads
+        // that land mid-session rather than at startup, where the same cold-open
+        // cost shows up as the editor going unresponsive.
+        const queueHeads = takeHeadReadCost();
+        if (queueHeads.reads > 0) {
+          console.log(
+            `[sketchspace] ${queueLabel}: ${queueHeads.reads} drawing head read(s) in ` +
+              `${(queueHeads.ms / 1000).toFixed(1)}s of the above`,
+          );
+        }
+      }
       return;
     }
+    const jobStarted = Date.now();
+    setCurrentWork(job.label);
     try {
-      job();
+      job.run();
     } catch (error) {
-      console.error("[sketchspace] deferred layout work failed:", error);
+      console.error(`[sketchspace] deferred work failed (${job.label}):`, error);
+    } finally {
+      setCurrentWork(null);
+      const elapsed = Date.now() - jobStarted;
+      took.push({ label: job.label, ms: elapsed });
+      // Named as it happens as well as in the summary, so a run that never
+      // finishes still shows what it was chewing through.
+      if (elapsed >= 1000) {
+        console.log(`[sketchspace] slow: ${job.label} took ${(elapsed / 1000).toFixed(1)}s`);
+      }
     }
     setImmediate(next);
   };
@@ -620,32 +701,71 @@ const refreshWatches = (
   // A drawing regenerated at a different size while we were not running leaves
   // the layout's box stale, and the drawing stretched into it. Cheap to check,
   // so it is checked on adoption rather than waiting for the next change.
-  const jobs: (() => void)[] = [];
+  const jobs: Job[] = [];
   for (const dir of adoptedDirs) {
-    jobs.push(() => {
-      try {
-        reconcileDirectory(dir, broadcast, broadcastPages);
-      } catch (error) {
-        console.error(`[sketchspace] reconcile failed for ${dir}:`, error);
-      }
+    jobs.push({
+      label: `reconcile ${path.basename(path.dirname(dir))}/${path.basename(dir)}`,
+      run: () => {
+        try {
+          reconcileDirectory(dir, broadcast, broadcastPages);
+        } catch (error) {
+          console.error(`[sketchspace] reconcile failed for ${dir}:`, error);
+        }
+      },
     });
   }
-  const resized = new Set(adopted.filter((layoutPath) => drawingSizesChanged(layoutPath)));
-  for (const layoutPath of resized) {
-    jobs.push(() => resyncLayoutAssets(layoutPath, broadcast, "drawing resized"));
+
+  // Both of these read files - drawing sizes off disk, and values out of the
+  // IFCs - for every layout just adopted, before a single job runs. They are
+  // inline and so invisible in a per-job breakdown; time them as a whole, since
+  // at startup "every layout" is sixty-five of them.
+  // Zeroed first, so what is reported below belongs to this pass and not to
+  // whatever read a drawing since the last one. The counter is global, and the
+  // first version of this reported 569 reads for a pass that had made 245.
+  takeHeadReadCost();
+  const resized = timed(
+    `checking drawing sizes for ${adopted.length} layout(s)`,
+    () => new Set(adopted.filter((layoutPath) => drawingSizesChanged(layoutPath))),
+  );
+  // Reported whether or not it was slow, because the ratio is the finding: the
+  // same 245 reads cost 28.0s on a cold start and 0.1s warm, so this says
+  // whether the filesystem or the amount of work is the problem. `adopted` is
+  // included because a rescan that keeps re-adopting layouts would pay it again
+  // every thirty seconds.
+  const heads = takeHeadReadCost();
+  if (heads.reads > 0) {
+    console.log(
+      `[sketchspace] drawing size checks: ${heads.reads} head read(s) for ` +
+        `${adopted.length} newly adopted layout(s) in ${(heads.ms / 1000).toFixed(1)}s ` +
+        `(${(heads.ms / heads.reads).toFixed(0)}ms each; slowest ${heads.slowestMs}ms ` +
+        `${path.basename(heads.slowest)})`,
+    );
   }
-  for (const layoutPath of primeLayoutValues(adopted)) {
+  for (const layoutPath of resized) {
+    jobs.push({
+      label: `resync ${path.basename(layoutPath)} (drawing resized)`,
+      run: () => resyncLayoutAssets(layoutPath, broadcast, "drawing resized"),
+    });
+  }
+  const primed = timed(
+    `priming template values for ${adopted.length} layout(s)`,
+    () => primeLayoutValues(adopted),
+  );
+  for (const layoutPath of primed) {
     if (!resized.has(layoutPath)) {
-      jobs.push(() => resyncLayoutAssets(layoutPath, broadcast, "template values applied", true));
+      jobs.push({
+        label: `resync ${path.basename(layoutPath)} (template values)`,
+        run: () => resyncLayoutAssets(layoutPath, broadcast, "template values applied", true),
+      });
     }
   }
   // One sheet per tick. At startup this is every sheet of every board, and a
   // full re-sync re-reads and re-hashes every drawing on a sheet - done in one
   // go it held the event loop long enough that nothing else could be served.
   if (onSettled) {
-    jobs.push(onSettled);
+    jobs.push({ label: "report adoption finished", run: onSettled });
   }
-  runSoon(jobs);
+  runSoon(jobs, adopted.length > 0 ? "adoption queue" : undefined);
 };
 
 export const startLayoutWatcher = (

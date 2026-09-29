@@ -805,6 +805,78 @@ process. It mattered more than it looked: a layout that fails to parse is a
 layout that places nothing, which is the same shape as every group having been
 deleted.
 
+### Finding where startup time goes
+
+`boards adopted in 324.5s` was true for weeks and never once said which of
+sixty-five layouts spent it, so every follow-up question needed a new build. The
+log now answers it without one:
+
+- **Each deferred job is named and timed.** `runSoon` takes `{label, run}` rather
+  than a bare function, reports anything over a second as it happens, and prints
+  a ranked summary when the queue drains.
+- **The two inline passes are timed**, since they run before any job and are
+  invisible to a per-job breakdown: reading every adopted layout's drawing sizes,
+  and priming template values out of the IFCs.
+- **A lag watchdog names what blocked the loop.** Everything here is
+  synchronous, so a "hang" is one job holding the loop. A 500ms timer that fires
+  late by more than 1.5s measures that for nothing.
+- **`scanLayouts` counts its own cost.** It runs `LIKE '%"bonsai"%'` over every
+  page's whole element array and `JSON.parse`s each row, and it is called once
+  per resync *as well as* once per rescan — so at startup it runs once per layout
+  adopted, which is quadratic in sheets. Whether that is where the time goes is
+  now a line in the log rather than an argument.
+
+One lesson from writing it: the watchdog reported every stall as "no job in
+flight" until it was actually run. Jobs are synchronous, so a job that blocks for
+five seconds has already cleared its label before the timer gets a turn. It now
+also remembers the job that *just* finished and whether it overlapped the stall.
+A print statement nobody has watched print is not instrumentation.
+
+Ruled out while looking: the `</svg>` retry in `parseLayout` costs nothing here —
+all 65 layouts end correctly, so it never fires, and parsing every one of them
+takes 0.06s in total.
+
+### What it found: every open of a Dropbox file costs 135ms when cold
+
+The first run with the instrumentation answered it outright. A cold start and a
+warm one, same code, same work:
+
+| | cold | warm |
+| --- | --- | --- |
+| `drawing size checks` — 245 reads | **28.0s** | **0.1s** |
+| adoption job queue, 67 jobs | 13.1s | 4.7s |
+| `boards adopted` | **43.1s** | **5.7s** |
+| `scanLayouts`, ~69 calls over 4554 page rows | 0.4s | 0.4s |
+
+So `scanLayouts` calling itself once per job — the obvious suspect, and the one
+guessed first — is 0.4 of 43 seconds. The quadratic shape is real and does not
+matter at this size.
+
+The cost is `intrinsicSizeMm`, which reads the first 8KB of each drawing to find
+its width and height. That is deliberately cheap work, and it was 28 seconds,
+because **the cost is per `open` and every project file is a Dropbox
+placeholder**. Measured directly, on files not touched this session:
+
+| | mean per open | median | p95 |
+| --- | --- | --- | --- |
+| cold, inside Dropbox (`ReparsePoint`) | **135ms** | 84ms | 683ms |
+| cold, plain NTFS on `C:` | **0.80ms** | 0.76ms | 1.2ms |
+| warm, either | ~0.1–0.5ms | | |
+
+169x, and it explains the variance that made this hard to pin down: three
+restarts in a row went 324s, 47s, 24s as the cache warmed. A startup does 526 of
+these reads — 245 in the size pass, 281 in the resync jobs.
+
+`stat` is not affected nearly as much: 0.5–0.7ms cold against 17–18ms for
+`open`+read on the same directory. So a size cache keyed on mtime and size pays
+off, because validating an entry is ~30x cheaper than rebuilding it.
+
+Two lessons beyond the numbers. **The counter has to be zeroed by the pass that
+reports it** — the first version was global, so a pass that made 245 reads
+reported 569 of them, having swept up the resync jobs' reads too. And **a
+guessed hot path is worth nothing**: the only reason this took an afternoon
+rather than a week was measuring the phases rather than reasoning about them.
+
 ### Git as the issuance log
 
 Ryan's project repos already encode issuances as commits

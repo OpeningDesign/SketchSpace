@@ -187,6 +187,10 @@ titleblocks". What bites:
   are reconciled both ways on open (`restore_all_moved_files`): extra groups out,
   missing groups back. Never assume the model is the only thing that can be
   ahead.
+- **Startup timing is in the log, not in a new build.** Jobs are labelled and
+  timed, the inline passes too, `scanLayouts` counts its own cost, and a lag
+  watchdog names whatever held the event loop. Read `server.log` before adding
+  prints. `scanLayouts` being called once per resync is the standing suspect.
 - **`parseLayout` retries while the file does not end in `</svg>`.** Bonsai's
   `tree.write` truncates before filling, and a parse failure looks exactly like a
   layout that places nothing.

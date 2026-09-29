@@ -119,10 +119,32 @@ const mm = (v: unknown): number => {
  * Only the head of the file is read: these attributes are on the root element,
  * and a drawing can be megabytes.
  */
+/**
+ * What the head reads have cost since the last report.
+ *
+ * Reading 8KB of each drawing is cheap work and was still 28s of a 43s startup,
+ * because the cost is per *open* on a Dropbox path that has gone cold, not per
+ * byte: the same 245 reads take 0.1s once warm. Counting reads and their total
+ * time separates "too much work" from "a slow filesystem", which is the
+ * difference between caching the answers and doing less of it.
+ */
+const headReadCost = { reads: 0, ms: 0, slowestMs: 0, slowest: "" };
+
+export const takeHeadReadCost = (): typeof headReadCost => {
+  const taken = { ...headReadCost };
+  headReadCost.reads = 0;
+  headReadCost.ms = 0;
+  headReadCost.slowestMs = 0;
+  headReadCost.slowest = "";
+  return taken;
+};
+
 export const intrinsicSizeMm = (
   file: string,
 ): { width: number; height: number } | null => {
   let head: string;
+  const readStarted = Date.now();
+  headReadCost.reads++;
   try {
     const handle = openSync(file, "r");
     const buffer = Buffer.alloc(8192);
@@ -131,6 +153,13 @@ export const intrinsicSizeMm = (
     head = buffer.subarray(0, read).toString("utf8");
   } catch {
     return null;
+  } finally {
+    const took = Date.now() - readStarted;
+    headReadCost.ms += took;
+    if (took > headReadCost.slowestMs) {
+      headReadCost.slowestMs = took;
+      headReadCost.slowest = file;
+    }
   }
 
   const root = /<svg\b[^>]*>/.exec(head);
