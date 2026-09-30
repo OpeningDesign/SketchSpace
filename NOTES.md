@@ -1078,6 +1078,22 @@ The `parseLayout` memo also showed up here by absence: only one `watch pass` lin
 in the whole run. That line prints only above a second, so the repeat sweeps -
 1581ms each, every thirty seconds - are now under it and silent.
 
+### Finding the asset directories meant parsing every layout
+
+Queueing the `watch()` calls left the *discovery* inline, and discovery is
+`assetDirsOf`, which parses the layout. So the critical path still read all
+sixty-five layouts to learn which directories to watch: 2154ms with Dropbox off,
+3479ms with it on, and by then the largest single item left before the queue
+starts.
+
+Now one job per layout, each a parse and a handful of watches, tagged with its
+layout so an opened sheet brings its own directories forward too.
+
+It opens a window the inline version did not have. A directory watched by one
+layout's job can fire before another layout sharing it has registered, so that
+second layout misses that one change. Seconds wide, covered by the thirty-second
+sweep, and written in the code so the next person does not have to work it out.
+
 ### Opening a sheet should not wait for the other sixty-four
 
 Everything above made the work cheaper. This makes it happen in a useful order.

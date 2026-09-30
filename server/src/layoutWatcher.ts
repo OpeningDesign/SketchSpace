@@ -761,59 +761,66 @@ const refreshWatches = (
   // thing left on the way up - and none of it is needed before the first page can
   // be served. A change arriving in the second before its watcher exists is
   // covered by the thirty-second sweep.
-  const assetDirJobs: Job[] = [];
-  // Claimed as they are queued, since several layouts share a drawings directory
-  // and the watcher that would have deduplicated them does not exist yet.
-  const queuedAssetDirs = new Set<string>();
-  for (const layoutPath of wanted.keys()) {
-    for (const dir of assetDirsOf(layoutPath)) {
-      const set = assetDirLayouts.get(dir) ?? new Set<string>();
-      set.add(layoutPath);
-      assetDirLayouts.set(dir, set);
-
-      if (
-        assetWatchers.has(dir) ||
-        dirWatchers.has(dir) ||
-        queuedAssetDirs.has(dir) ||
-        !existsSync(dir)
-      ) {
-        continue;
-      }
-      queuedAssetDirs.add(dir);
-      assetDirJobs.push({
-        label: `watch assets dir ${path.basename(dir)}`,
-        run: () => {
-          // Re-checked: a sweep may have got here first, or the directory may
-          // have gone between queueing and running.
-          if (assetWatchers.has(dir) || !existsSync(dir)) {
-            return;
-          }
-          try {
-            let timer: NodeJS.Timeout | undefined;
-            const watcher = watch(dir, () => {
-              clearTimeout(timer);
-              timer = setTimeout(() => {
-                runSoon(
-                  [...(assetDirLayouts.get(dir) ?? [])].map((lp) => ({
-                    label: `resync ${path.basename(lp)} (linked asset changed)`,
-                    layout: lp,
-                    run: () => resyncLayoutAssets(lp, broadcast),
-                  })),
-                );
-              }, DEBOUNCE_MS);
-            });
-            watcher.on("error", () => {
-              watcher.close();
-              assetWatchers.delete(dir);
-            });
-            assetWatchers.set(dir, watcher);
-            console.log(`[sketchspace] watching assets dir ${dir}`);
-          } catch (error) {
-            console.error(`[sketchspace] cannot watch ${dir}:`, error);
-          }
-        },
-      });
+  /**
+   * Start watching a directory of linked files, if it is not watched already.
+   *
+   * Checked at run time rather than when queued: two layouts can share a drawings
+   * directory, and whichever job gets there first is the one that watches it.
+   */
+  const watchAssetDir = (dir: string): void => {
+    if (assetWatchers.has(dir) || dirWatchers.has(dir) || !existsSync(dir)) {
+      return;
     }
+    try {
+      let timer: NodeJS.Timeout | undefined;
+      const watcher = watch(dir, () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          runSoon(
+            [...(assetDirLayouts.get(dir) ?? [])].map((lp) => ({
+              label: `resync ${path.basename(lp)} (linked asset changed)`,
+              layout: lp,
+              run: () => resyncLayoutAssets(lp, broadcast),
+            })),
+          );
+        }, DEBOUNCE_MS);
+      });
+      watcher.on("error", () => {
+        watcher.close();
+        assetWatchers.delete(dir);
+      });
+      assetWatchers.set(dir, watcher);
+      console.log(`[sketchspace] watching assets dir ${dir}`);
+    } catch (error) {
+      console.error(`[sketchspace] cannot watch ${dir}:`, error);
+    }
+  };
+
+  // Finding these directories means parsing the layout, which is why the whole
+  // job is deferred rather than just the `watch()` call: doing the discovery
+  // inline read all sixty-five layouts on the critical path, measured at 2154ms
+  // with Dropbox off and 3479ms with it on. One job per layout instead, each a
+  // parse and a handful of watches, and tagged with its layout so that opening a
+  // sheet brings its own directories forward with the rest of its work.
+  //
+  // It does open a window the inline version did not have: a directory watched by
+  // one layout's job can fire before another layout sharing it has registered, so
+  // that second layout misses that one change. It is seconds wide, and the
+  // thirty-second sweep covers it.
+  const assetDirJobs: Job[] = [];
+  for (const layoutPath of wanted.keys()) {
+    assetDirJobs.push({
+      label: `watch asset dirs for ${path.basename(layoutPath)}`,
+      layout: layoutPath,
+      run: () => {
+        for (const dir of assetDirsOf(layoutPath)) {
+          const set = assetDirLayouts.get(dir) ?? new Set<string>();
+          set.add(layoutPath);
+          assetDirLayouts.set(dir, set);
+          watchAssetDir(dir);
+        }
+      },
+    });
   }
 
   const assetsWatchedAt = Date.now();
@@ -874,7 +881,7 @@ const refreshWatches = (
     console.log(
       `[sketchspace] watch pass took ${((adoptedAt - phaseStarted) / 1000).toFixed(1)}s: ` +
         `scan ${scannedAt - phaseStarted}ms, layout dirs ${dirsWatchedAt - scannedAt}ms, ` +
-        `asset dirs queued ${assetsWatchedAt - dirsWatchedAt}ms, ` +
+        `asset dir jobs ${assetsWatchedAt - dirsWatchedAt}ms, ` +
         `adopt ${adoptedAt - assetsWatchedAt}ms for ${adopted.length} layout(s), ` +
         `layouts parsed ${parses.misses} read / ${parses.hits} cached`,
     );
