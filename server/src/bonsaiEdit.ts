@@ -157,6 +157,14 @@ export const fieldsFor = async (ref: ElementRef): Promise<ViewFields> => {
 
   const source = liveSourceForLayout(ref.layout);
   if (!source) {
+    // Said out loud, because this branch is indistinguishable from a fault in the
+    // panel: every field comes back read-only and, if the saved file has nothing
+    // for it, blank. Reported as a titleblock going blank after a save on
+    // 2026-09-30, and worth knowing whether this is where it goes.
+    console.warn(
+      `[sketchspace] fields for ${sheet}/${view}: no Blender has ${ref.layout} open, ` +
+        `so values come from the saved file and cannot be edited`,
+    );
     // The values are on the sheet - they came from the saved file - and showing
     // them blank would read as a fault rather than as something to come back to.
     // The file is not where an edit can go, so they are shown and not offered.
@@ -171,6 +179,16 @@ export const fieldsFor = async (ref: ElementRef): Promise<ViewFields> => {
   }
 
   const fields = await askEditableFields(source, ref.layout, resolved.target, withLinks(resolved, names));
+  // The other way the panel can come back looking empty: Blender answered, but
+  // with nothing in any of the boxes. That means the names a template asks for and
+  // the data behind the view do not meet, which is a different fault from the one
+  // above and needs telling apart from it.
+  if (fields.length > 0 && fields.every((f) => !f.value)) {
+    console.warn(
+      `[sketchspace] fields for ${sheet}/${view}: Blender answered with ${fields.length} ` +
+        `field(s) and every value empty - asked for ${JSON.stringify(names)}`,
+    );
+  }
   return { sheet, view, connected: true, fields };
 };
 

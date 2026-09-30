@@ -506,8 +506,42 @@ const liveValuesFor = (dirKey: string, target: string) => {
  * is the one the values came from, and writing to the saved file instead would
  * be invisible to it and lost on its next save (NOTES.md).
  */
-export const liveSourceForLayout = (layoutPath: string): string | null =>
-  liveValuesFor(normalisePath(projectDirOf(layoutPath)), normalisePath(layoutPath))?.source ?? null;
+export const liveSourceForLayout = (layoutPath: string): string | null => {
+  const dirKey = normalisePath(projectDirOf(layoutPath));
+  const exact = liveValuesFor(dirKey, normalisePath(layoutPath));
+  if (exact) {
+    return exact.source;
+  }
+
+  // A sheet that was just renamed has moved its layout, inside the same folder,
+  // and the live extract still lists the old name until Bonsai sends its values
+  // again. Asking for the new name therefore finds nothing, and the panel that
+  // followed the rename fell back to the saved file: every field read-only, and
+  // blank, because the saved file knows nothing under the new name either. That
+  // is what editing a titleblock's Identification looked like on 2026-09-30 -
+  // press Enter, and the values vanish.
+  //
+  // The model that performed the rename is the one to send the next edit to, and
+  // it is the one whose IFC sits in this project directory.
+  const inThisProject = [...live].filter(
+    ([, { extract }]) => normalisePath(path.dirname(extract.ifc)) === dirKey,
+  );
+  if (inThisProject.length === 1) {
+    const [source] = inThisProject[0]!;
+    console.log(
+      `[sketchspace] ${path.basename(layoutPath)} is not in ${path.basename(source)}'s ` +
+        `sheet list yet - just renamed, most likely - so using the one Blender with ` +
+        `this project open`,
+    );
+    return source;
+  }
+
+  // Several models in one folder, which happens: project folders hold merged
+  // copies and exports. Picking one would risk writing an edit into the wrong
+  // model, which is worse than showing the values read-only until Bonsai sends
+  // its list again.
+  return null;
+};
 
 /**
  * Template values for a layout, or null if none are available yet.

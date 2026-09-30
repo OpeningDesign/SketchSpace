@@ -1112,6 +1112,37 @@ changing), so all of them are searched.
 What it does not do is make the total shorter. The other sixty-four sheets still
 get their work; it just happens after the one being looked at.
 
+### Renaming a sheet lost the Blender that renamed it
+
+Editing a titleblock's Identification and pressing Enter left the panel showing
+field names with every value blank. Two suspects were wrong before the right one:
+`_find_target` is deterministic for a titleblock so it cannot resolve to the wrong
+view, and the inputs do fall back to the fetched value. A log line either side of
+the branch settled it in one attempt:
+
+    fields for A1000 - FLOOR  SITE PLAN/titleblock: no Blender has
+      D:\...\layouts\A1000 - FLOOR  SITE PLAN.svg open
+
+Editing the Identification **renames the sheet**, which moves its layout file.
+The panel follows Bonsai's new path - that was fixed earlier - but
+`liveValuesFor` matches a live Blender by finding the layout in the sheet list it
+last sent, and that list still holds the old name. So the new name matched nothing,
+`fieldsFor` fell back to the saved file, and the saved file knows nothing under the
+new name either: every field read-only and empty, which reads exactly like a fault.
+
+`liveSourceForLayout` now falls back to the single Blender with that project
+directory open, since a rename moves the layout within the same folder and the
+model that renamed it is the one the next edit belongs to. When several models
+share the folder - project folders hold merged copies and exports - it still
+refuses, because sending an edit into the wrong model is worse than a read-only
+panel.
+
+Two things worth keeping. The read-only fallback is **indistinguishable from a
+bug** on screen, so it now says so in the log; a state that looks like a fault
+should announce itself. And the two diagnostics were written to tell apart the two
+ways the panel can look empty - no live Blender, versus a live Blender answering
+with nothing - which is what made one attempt enough.
+
 ### An href is XML before it is a path
 
 `resolveHref` URL-decoded an href and resolved it. It never decoded XML character
