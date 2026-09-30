@@ -211,9 +211,13 @@ titleblocks". What bites:
   stalled; it can only name a cause when that job's own duration accounts for the
   stall. A blamed job with no matching `slow:` line means the blame is wrong.
 - **Startup timing is in the log, not in a new build.** Jobs are labelled and
-  timed, the inline passes too, `scanLayouts` counts its own cost, and a lag
-  watchdog names whatever held the event loop. Read `server.log` before adding
-  prints. `scanLayouts` being called once per resync is the standing suspect.
+  timed, the inline passes too, `scanLayouts` and the drawing reads count their own
+  cost, and a lag watchdog names whatever held the event loop. Read `server.log`
+  before adding prints.
+- **`scanLayouts` is *not* the bottleneck, whatever its shape suggests.** Being
+  called once per resync makes it quadratic in sheets and it still measured 0.4s of
+  a 43s startup. It was guessed first and was wrong; the cost was always the number
+  of file opens against Dropbox. Measure before believing the next tidy story.
 - **`parseLayout` retries while the file does not end in `</svg>`.** Bonsai's
   `tree.write` truncates before filling, and a parse failure looks exactly like a
   layout that places nothing.

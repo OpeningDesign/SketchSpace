@@ -464,6 +464,14 @@ renamed sheet takes its layout and built sheet with it, a renamed drawing its
 SVG and every layout placing it. The tab then updates itself the way it does for
 any other change made in Bonsai.
 
+Renaming a sheet from here moves its layout file, and for a moment the Blender
+holding the model still lists the old name. The panel follows the sheet to its new
+path and keeps editing it, which needs the right Blender to be identifiable — the
+one with that project folder open. If a folder holds **several** models, which
+happens where merged copies and exports live beside the original, the panel goes
+read-only until Bonsai sends its sheet list again rather than risk writing your
+edit into the wrong model. Values come back a few seconds later.
+
 Nothing is written to the `.ifc` or to the layout from here. Blender keeps the
 model in memory, so a write to the file would be invisible to it and lost the
 next time it saves. Each save from here is one step in Blender's undo history,

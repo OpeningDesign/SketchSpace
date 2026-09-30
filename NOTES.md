@@ -1037,6 +1037,9 @@ directories to watch. The give-away was the next sweep:
 
     watch pass took 1.6s: ... asset dirs queued 1581ms ... for 0 layout(s)
 
+(That field is called `asset dir jobs` now: once the discovery moved into the
+queue it measures building the jobs, not doing the work.)
+
 Nothing to adopt, and still 1.58s - on a thirty-second timer, forever. A far
 better candidate for the hangs felt mid-session than anything at startup.
 
@@ -1065,7 +1068,7 @@ Same build, same caches, one run with Dropbox running and one without:
 | `boards adopted` | 23.3s | **12.3s** |
 | adoption queue, 101 jobs | 14.4s | **5.9s** |
 | watch pass | 3.8s | 2.8s |
-| `asset dirs queued` | 3479ms | 2165ms |
+| `asset dirs queued` (now `asset dir jobs`) | 3479ms | 2165ms |
 
 So roughly eleven of those twenty-three seconds is Dropbox contention, and no
 amount of caching reaches it. Worth knowing where the ceiling is.
