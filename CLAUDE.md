@@ -189,6 +189,13 @@ titleblocks". What bites:
   are reconciled both ways on open (`restore_all_moved_files`): extra groups out,
   missing groups back. Never assume the model is the only thing that can be
   ahead.
+- **A drawing's asset is cached against every file it was built from**
+  (`linkedAssets.ts`): the drawing and each image inlined into it, keyed on mtime
+  and size. Keying on the drawing alone misses a redrawn underlay. Rendered
+  view-titles are never cached - they depend on model values too.
+- **Nothing on the startup path may read a whole file to look at its head.**
+  `migrateDataUrlAssets` did, over 1821 MB, before `listen`. It now reads five
+  bytes and records completion in `<dataDir>/.assets-migrated`.
 - **Drawing sizes come from `drawingSizeMm`, not `intrinsicSizeMm`.** The first
   caches against mtime+size in `<dataDir>/drawing-sizes.json`; the second opens
   the file, which costs ~135ms cold on a Dropbox path against ~0.8ms on NTFS. Any

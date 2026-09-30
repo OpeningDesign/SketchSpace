@@ -939,6 +939,66 @@ misreporting:
   reported "401 cached" that belonged to the jobs. The same mistake as the first
   time, in the counter sitting next to it. Zero them together or not at all.
 
+### 1821 MB read to look at five bytes
+
+With the loops queued, a cold start was 14.1s, of which **5.7s was before the port
+answered** - the part a browser spends waiting on nothing. It was one synchronous
+block, and it was `migrateDataUrlAssets`, which runs before `listen`:
+
+```ts
+const head = readFileSync(full).subarray(0, 5).toString("latin1");
+```
+
+The comment above it said "cheap probe". It reads the whole file and then takes
+five bytes: 1476 assets, **1821 MB**, 4.48s, on every single startup, to discover
+what five bytes would have said in 0.88s.
+
+Fixed twice over. It reads five bytes now, and it records that it has run in
+`<dataDir>/.assets-migrated`, so after the first pass it does not read at all.
+That is safe because nothing writes a data URL any anymore - `storeAsset` writes
+raw bytes - and the migration is by definition one-time. The trade-off is real and
+deliberate: a backup old enough to contain data URLs, restored after the marker
+exists, will not be migrated. Deleting the marker forces another pass, and the
+file says so.
+
+Worth naming the general shape, because it is not specific to assets: **a comment
+claiming something is cheap is not a measurement.** This one had been wrong for as
+long as it had been there, in the one function guaranteed to run before the server
+can answer anything.
+
+The remaining pre-adoption block is the watch pass itself, 6.4s of which the timed
+passes inside it accounted for only 2.7s - drawing sizes 0.7s, priming values 2.0s.
+It now prints its own breakdown (scan, layout dirs, asset dirs, adopt) when it
+takes over a second, because ~3.7s was going somewhere unmeasured: 65 layout reads
+and hashes, and about a hundred filesystem watchers on Dropbox paths.
+
+### And the drawings themselves: 21 MB a sheet, for the same answer
+
+With the pre-listen work gone, a cold start's remaining cost was single syncs
+taking seconds - `sync A750 - ADA RESTROOM PLAN AND ELEVATIONS.svg took 17.6s`,
+against 0.0s for that same job warm. `storeLinkedSvg` reads the whole drawing,
+reads every image it links to, base64s those into it, hashes the result and writes
+the asset. A750 is 14 files and 21.2 MB; A500 is 19 files and 3.1 MB. The asset is
+named after its own hash, so when nothing has changed all of that work writes the
+same file back over itself.
+
+`linkedAssets.ts` caches the produced fileId against **every file that went into
+it** - the drawing and each inlined image. A hit costs one stat per dependency,
+~0.5ms each, instead of opening them cold at ~135ms.
+
+The nested list is the interesting part of the design. It comes from reading the
+drawing, so the first pass per drawing still pays in full and records what it
+depended on; `inlineNestedImages` now returns the paths it read for exactly this.
+Keying on the drawing alone would have been simpler and wrong: a redrawn underlay
+leaves the drawing's own mtime untouched, and the symptom would have been a stale
+image on the sheet with nothing in the log to explain it. That case is the one the
+test exists for.
+
+View-titles are deliberately not cached. They are templates filled from model
+values, so their output depends on more than the files, and they are a few KB each.
+`rendererFor` returns undefined for everything else, which is what the cache keys
+off.
+
 ### An href is XML before it is a path
 
 `resolveHref` URL-decoded an href and resolved it. It never decoded XML character

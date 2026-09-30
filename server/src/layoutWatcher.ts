@@ -25,6 +25,7 @@ import {
 } from "./layoutImport.js";
 import { parseLayout, takeHeadReadCost } from "./bonsaiLayout.js";
 import { takeDrawingSizeCost } from "./drawingSizes.js";
+import { takeLinkedAssetCost } from "./linkedAssets.js";
 import { onLayoutValuesChanged, primeLayoutValues } from "./ifcValues.js";
 import { drawingSizesChanged, rebindLayoutPath, syncPageWithLayout } from "./layoutSync.js";
 import { setCurrentWork, since, timed } from "./log.js";
@@ -546,6 +547,18 @@ const runSoon = (jobs: Job[], queueLabel?: string): void => {
         // cost shows up as the editor going unresponsive.
         const queueHeads = takeHeadReadCost();
         const queueSizes = takeDrawingSizeCost();
+        // The big one: a hit here is a whole drawing, plus everything inlined into
+        // it, not read at all.
+        const assets = takeLinkedAssetCost();
+        if (assets.hits + assets.misses > 0) {
+          console.log(
+            `[sketchspace] ${queueLabel}: linked assets ${assets.hits} cached, ` +
+              `${assets.misses} rebuilt` +
+              (assets.bytesSaved > 0
+                ? `, ${(assets.bytesSaved / 1024 / 1024).toFixed(0)} MB not read`
+                : ""),
+          );
+        }
         if (queueSizes.hits + queueSizes.misses > 0) {
           console.log(
             `[sketchspace] ${queueLabel}: drawing sizes ${queueSizes.hits} cached, ` +
@@ -601,7 +614,13 @@ const refreshWatches = (
   broadcastPages: BroadcastPages,
   onSettled?: () => void,
 ): void => {
+  // Checkpoints rather than wrappers, because these are plain loops and the
+  // interesting number is how they divide up. The whole body is synchronous, so
+  // at startup it is one block the server cannot serve during - measured at 6.4s,
+  // of which the two timed passes below accounted for only 2.7s.
+  const phaseStarted = Date.now();
   const wanted = scanLayouts();
+  const scannedAt = Date.now();
   const adoptedDirs: string[] = [];
 
   for (const [layoutPath, watcher] of watchers) {
@@ -653,6 +672,8 @@ const refreshWatches = (
     }
   }
 
+  const dirsWatchedAt = Date.now();
+
   // Watch the directories holding each layout's linked files.
   for (const layoutPath of wanted.keys()) {
     for (const dir of assetDirsOf(layoutPath)) {
@@ -684,6 +705,8 @@ const refreshWatches = (
       }
     }
   }
+
+  const assetsWatchedAt = Date.now();
 
   const adopted: string[] = [];
   for (const layoutPath of wanted.keys()) {
@@ -734,6 +757,16 @@ const refreshWatches = (
   // IFCs - for every layout just adopted, before a single job runs. They are
   // inline and so invisible in a per-job breakdown; time them as a whole, since
   // at startup "every layout" is sixty-five of them.
+  const adoptedAt = Date.now();
+  if (adoptedAt - phaseStarted >= 1000) {
+    console.log(
+      `[sketchspace] watch pass took ${((adoptedAt - phaseStarted) / 1000).toFixed(1)}s: ` +
+        `scan ${scannedAt - phaseStarted}ms, layout dirs ${dirsWatchedAt - scannedAt}ms, ` +
+        `asset dirs ${assetsWatchedAt - dirsWatchedAt}ms, ` +
+        `adopt ${adoptedAt - assetsWatchedAt}ms for ${adopted.length} layout(s)`,
+    );
+  }
+
   // Both zeroed first, so what is reported below belongs to this pass and not to
   // whatever looked at a drawing since the last one. They are global counters,
   // and forgetting one of them is how a pass with nothing to adopt reported "401

@@ -18,9 +18,10 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { writeAsset } from "./assets.js";
+import { assetPath, writeAsset } from "./assets.js";
 import { inlineNestedImages, MM_TO_PX, parseLayout } from "./bonsaiLayout.js";
 import { drawingSizeMm } from "./drawingSizes.js";
+import { cachedAssetFor, rememberAsset } from "./linkedAssets.js";
 import { newId, recordFile } from "./db.js";
 import { indexBetween } from "./fracIndex.js";
 import { getLayoutValues } from "./ifcValues.js";
@@ -70,13 +71,32 @@ const storeLinkedSvg = (
   if (!existsSync(href)) {
     return null;
   }
+
+  // Nothing here depends on anything but the files when there is no template to
+  // fill, so an unchanged drawing already has its asset and there is no reason to
+  // read 21MB to arrive at the same hash. A rendered view-title depends on model
+  // values as well, so it is never cached.
+  if (!render) {
+    const cached = cachedAssetFor(href);
+    // The asset itself has to still be there: the cache maps a drawing to a
+    // fileId, and a fileId is per board, so another board may know it and this
+    // one not have it yet.
+    if (cached && existsSync(assetPath(boardId, cached))) {
+      recordFile(cached, boardId, "image/svg+xml");
+      return cached;
+    }
+  }
+
   const raw = readFileSync(href, "utf8");
-  const { svg } = inlineNestedImages(render ? render(raw) : raw, path.dirname(href));
+  const { svg, sources } = inlineNestedImages(render ? render(raw) : raw, path.dirname(href));
   const buf = Buffer.from(svg, "utf8");
   const fileId = createHash("sha256").update(buf).digest("hex").slice(0, 40);
 
   writeAsset(boardId, fileId, buf);
   recordFile(fileId, boardId, "image/svg+xml");
+  if (!render) {
+    rememberAsset(href, sources, fileId);
+  }
   return fileId;
 };
 

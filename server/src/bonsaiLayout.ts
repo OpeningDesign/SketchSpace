@@ -296,8 +296,11 @@ const MIME_BY_EXT: Record<string, string> = {
 export const inlineNestedImages = (
   svg: string,
   svgDir: string,
-): { svg: string; inlined: number; missing: string[] } => {
+): { svg: string; inlined: number; missing: string[]; sources: string[] } => {
   const missing: string[] = [];
+  // Which files were actually read, so a caller caching the result can tell when
+  // one of them changes. A redrawn underlay leaves the drawing's own mtime alone.
+  const sources: string[] = [];
   let inlined = 0;
 
   const out = svg.replace(
@@ -314,6 +317,7 @@ export const inlineNestedImages = (
       try {
         const bytes = readFileSync(target);
         inlined++;
+        sources.push(target);
         return `${attr}="data:${mime};base64,${bytes.toString("base64")}"`;
       } catch {
         missing.push(href);
@@ -322,7 +326,7 @@ export const inlineNestedImages = (
     },
   );
 
-  return { svg: out, inlined, missing };
+  return { svg: out, inlined, missing, sources };
 };
 
 /**

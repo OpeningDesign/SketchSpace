@@ -21,7 +21,17 @@
  * reference there simply renders nothing. Bonsai's sioserver.py inlines for the
  * same reason.
  */
-import { readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  readSync,
+  renameSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 
 import { config } from "./config.js";
@@ -64,10 +74,32 @@ export const assetUrl = (boardId: string, fileId: string): string =>
   `/api/boards/${boardId}/assets/${fileId}`;
 
 /**
+ * Records that the data-URL migration has been done, so it is not done again.
+ *
+ * Nothing writes a data URL any more - `storeAsset` writes raw bytes - so once a
+ * pass has been through the directory there is nothing for a later one to find.
+ * Without this it walked every asset on every boot: 1476 files here.
+ *
+ * Delete this file to force another pass, which is what to do after restoring a
+ * backup old enough to contain data URLs.
+ */
+const MIGRATION_MARKER = () => path.join(config.dataDir, ".assets-migrated");
+
+/**
  * One-time migration: assets used to be stored as `data:` URL text. Rewrite any
  * that still are, which also reclaims the base64 overhead.
+ *
+ * Runs before the server listens, so its cost is time the browser spends waiting
+ * for a port. It used to cost 4.5s of every startup by reading all 1821 MB of
+ * assets to look at five bytes of each - `readFileSync(full).subarray(0, 5)` reads
+ * the whole file first. Now it reads five bytes, and after the first pass it does
+ * not read at all.
  */
 export const migrateDataUrlAssets = (): void => {
+  if (existsSync(MIGRATION_MARKER())) {
+    return;
+  }
+
   let converted = 0;
   let saved = 0;
 
@@ -78,14 +110,23 @@ export const migrateDataUrlAssets = (): void => {
     return;
   }
 
+  const probe = Buffer.alloc(5);
   for (const name of entries) {
     const full = path.join(filesDir(), name);
     try {
       if (!statSync(full).isFile()) {
         continue;
       }
-      // Cheap probe: only data URLs start with "data:".
-      const head = readFileSync(full).subarray(0, 5).toString("latin1");
+      // Only data URLs start with "data:", and five bytes is all that takes.
+      // Reading the file to find out costs as much as the whole migration.
+      let head = "";
+      const handle = openSync(full, "r");
+      try {
+        const read = readSync(handle, probe, 0, probe.length, 0);
+        head = probe.subarray(0, read).toString("latin1");
+      } finally {
+        closeSync(handle);
+      }
       if (head !== "data:") {
         continue;
       }
@@ -109,5 +150,17 @@ export const migrateDataUrlAssets = (): void => {
       `[sketchspace] converted ${converted} asset(s) from data URLs to raw bytes, ` +
         `reclaiming ${(saved / 1024 / 1024).toFixed(0)} MB`,
     );
+  }
+
+  // Written even when nothing was converted - especially then, since that is the
+  // case where walking the directory again would be pure waste.
+  try {
+    writeFileSync(
+      MIGRATION_MARKER(),
+      `${new Date().toISOString()} checked ${entries.length} asset(s), converted ${converted}
+`,
+    );
+  } catch (error) {
+    console.warn(`[sketchspace] could not record the asset migration:`, error);
   }
 };
