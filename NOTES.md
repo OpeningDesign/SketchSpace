@@ -1056,6 +1056,46 @@ are `ReparsePoint` placeholders, so every open goes through the filter driver wh
 sync is running or not - that is the 135ms against 0.80ms measured earlier, and it is
 inherent to the files living there.
 
+### How much of it is Dropbox: about half
+
+Same build, same caches, one run with Dropbox running and one without:
+
+| | Dropbox on | Dropbox off |
+| --- | --- | --- |
+| `boards adopted` | 23.3s | **12.3s** |
+| adoption queue, 101 jobs | 14.4s | **5.9s** |
+| watch pass | 3.8s | 2.8s |
+| `asset dirs queued` | 3479ms | 2165ms |
+
+So roughly eleven of those twenty-three seconds is Dropbox contention, and no
+amount of caching reaches it. Worth knowing where the ceiling is.
+
+Note that pausing Dropbox does not remove the *per-open* cost either - the project
+files are `ReparsePoint` placeholders, so the filter driver is in the path whether
+sync is running or not. What the comparison isolates is contention, not the driver.
+
+The `parseLayout` memo also showed up here by absence: only one `watch pass` line
+in the whole run. That line prints only above a second, so the repeat sweeps -
+1581ms each, every thirty seconds - are now under it and silent.
+
+### Opening a sheet should not wait for the other sixty-four
+
+Everything above made the work cheaper. This makes it happen in a useful order.
+
+A startup queues work for every layout of every project - sixty-five across seven
+here - and someone opening one sheet waited behind all of it. `prioritiseLayout`
+moves that layout's pending jobs to the front of every queue still draining, and
+`collab` calls it when a page is joined, after the ack so the client is not waiting
+on it. Jobs carry an optional `layout` for exactly this.
+
+Relative order among the promoted jobs is kept - a reconcile before a resync is not
+the same as the reverse - which is why the loop walks backwards and unshifts.
+Several queues can be in flight at once (adoption, values arriving, a directory
+changing), so all of them are searched.
+
+What it does not do is make the total shorter. The other sixty-four sheets still
+get their work; it just happens after the one being looked at.
+
 ### An href is XML before it is a path
 
 `resolveHref` URL-decoded an href and resolved it. It never decoded XML character

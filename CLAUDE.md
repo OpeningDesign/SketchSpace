@@ -200,6 +200,10 @@ titleblocks". What bites:
   caches against mtime+size in `<dataDir>/drawing-sizes.json`; the second opens
   the file, which costs ~135ms cold on a Dropbox path against ~0.8ms on NTFS. Any
   new caller wanting a drawing's size goes through the cache.
+- **An opened page promotes its layout.** Jobs carry an optional `layout`, and
+  `prioritiseLayout` moves that layout's pending work to the front of every
+  draining queue; `collab` calls it on page join. Any new queued work about a
+  layout should carry the field, or it cannot be promoted.
 - **Nothing slow goes on the critical path; queue it.** `runSoon` is the only way
   work should reach the filesystem at startup - watcher creation and sweeps
   included. Overlapping sweeps collapse through `scheduleRefresh`.

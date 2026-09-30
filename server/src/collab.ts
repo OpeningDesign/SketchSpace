@@ -14,6 +14,7 @@ import { scheduleLayoutAutosave } from "./layoutWriter.js";
 import { addViewer, applyUpdate, getElements, removeViewer } from "./store.js";
 
 import type { Presence, SyncElement } from "./types.js";
+import { prioritiseLayout } from "./layoutWatcher.js";
 import type { Server, Socket } from "socket.io";
 
 /**
@@ -153,7 +154,19 @@ export const registerCollab = (io: Server): void => {
         socket.join(pageRoom(pageId));
         addViewer(pageId);
 
-        ack?.({ pageId, elements: getElements(pageId) });
+        const elements = getElements(pageId);
+        ack?.({ pageId, elements });
+
+        // The page is on screen now, so whatever is still queued for its layout
+        // matters more than the sixty-four sheets nobody is looking at. Sent after
+        // the ack so the client is not waiting on it, and harmless when the queues
+        // hold nothing for this layout.
+        const layout = (elements as { customData?: { bonsai?: { layout?: string } } }[])
+          .map((el) => el.customData?.bonsai?.layout)
+          .find((l): l is string => Boolean(l));
+        if (layout) {
+          prioritiseLayout(layout);
+        }
         if (presence.boardId) {
           broadcastPresence(io, presence.boardId);
         }

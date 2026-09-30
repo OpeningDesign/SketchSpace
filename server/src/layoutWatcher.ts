@@ -512,7 +512,18 @@ const reconcileDirectory = (
  * The label is the whole point: at startup this queue is every sheet of every
  * board, and a total for the lot is not something you can act on.
  */
-type Job = { label: string; run: () => void };
+type Job = {
+  label: string;
+  run: () => void;
+  /**
+   * The layout this job is about, when it is about one.
+   *
+   * Only so `prioritiseLayout` can find it. At startup the queue holds work for
+   * every layout of every project - sixty-five here, across seven - and someone
+   * opening one sheet should not wait behind the other sixty-four.
+   */
+  layout?: string;
+};
 
 /**
  * Run jobs one per tick, so a long queue never blocks serving.
@@ -521,14 +532,57 @@ type Job = { label: string; run: () => void };
  * ranked summary when it drains. `setCurrentWork` lets the lag watchdog name
  * whatever was holding the loop if one job blocks for seconds.
  */
+/**
+ * Queues still draining, so work can be promoted within them.
+ *
+ * A queue is an array that `next` shifts from, so moving a job to index 0 makes it
+ * the next one to run. Several queues can be in flight at once - adoption, values
+ * arriving, a directory changing - and a page being opened should reach the front
+ * of all of them.
+ */
+const activeQueues = new Set<Job[]>();
+
+const samePath = (a: string, b: string): boolean =>
+  process.platform === "win32"
+    ? path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase()
+    : path.resolve(a) === path.resolve(b);
+
+/**
+ * Put this layout's pending work at the front of every queue.
+ *
+ * Called when someone opens a page: the sheet in front of them is worth more than
+ * the sixty-four they are not looking at. Relative order among the promoted jobs is
+ * kept, because a reconcile before a resync is not the same as the other way round.
+ */
+export const prioritiseLayout = (layoutPath: string): void => {
+  for (const jobs of activeQueues) {
+    const promoted: Job[] = [];
+    for (let i = jobs.length - 1; i >= 0; i--) {
+      const job = jobs[i]!;
+      if (job.layout && samePath(job.layout, layoutPath)) {
+        promoted.unshift(...jobs.splice(i, 1));
+      }
+    }
+    if (promoted.length > 0) {
+      jobs.unshift(...promoted);
+      console.log(
+        `[sketchspace] ${path.basename(layoutPath)} was opened - ` +
+          `${promoted.length} job(s) moved to the front of ${jobs.length}`,
+      );
+    }
+  }
+};
+
 const runSoon = (jobs: Job[], queueLabel?: string): void => {
   const started = Date.now();
+  activeQueues.add(jobs);
   const took: { label: string; ms: number }[] = [];
   const total = jobs.length;
 
   const next = () => {
     const job = jobs.shift();
     if (!job) {
+      activeQueues.delete(jobs);
       if (queueLabel && total > 0) {
         const slowest = [...took].sort((a, b) => b.ms - a.ms).slice(0, 5);
         console.log(
@@ -742,6 +796,7 @@ const refreshWatches = (
                 runSoon(
                   [...(assetDirLayouts.get(dir) ?? [])].map((lp) => ({
                     label: `resync ${path.basename(lp)} (linked asset changed)`,
+                    layout: lp,
                     run: () => resyncLayoutAssets(lp, broadcast),
                   })),
                 );
@@ -855,6 +910,7 @@ const refreshWatches = (
   for (const layoutPath of resized) {
     jobs.push({
       label: `resync ${path.basename(layoutPath)} (drawing resized)`,
+      layout: layoutPath,
       run: () => resyncLayoutAssets(layoutPath, broadcast, "drawing resized"),
     });
   }
@@ -866,6 +922,7 @@ const refreshWatches = (
     if (!resized.has(layoutPath)) {
       jobs.push({
         label: `resync ${path.basename(layoutPath)} (template values)`,
+        layout: layoutPath,
         run: () => resyncLayoutAssets(layoutPath, broadcast, "template values applied", true),
       });
     }
@@ -910,6 +967,7 @@ export const startLayoutWatcher = (
     runSoon(
       layoutPaths.map((layoutPath) => ({
         label: `resync ${path.basename(layoutPath)} (values arrived)`,
+        layout: layoutPath,
         run: () => resyncLayoutAssets(layoutPath, broadcast, "template values changed", true),
       })),
       layoutPaths.length > 1 ? "values queue" : undefined,
