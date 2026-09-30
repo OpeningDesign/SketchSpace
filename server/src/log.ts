@@ -95,14 +95,26 @@ export const setCurrentWork = (label: string | null): void => {
   currentWork = label;
 };
 
+/**
+ * How recently a finished job must have ended to be worth blaming.
+ *
+ * Fixed and small on purpose. Blaming anything that finished within the whole
+ * stall - which the first version did - means a 78s block names whatever job
+ * happened to end in the last 78 seconds, which is almost always innocent. It
+ * read as a confident answer and was noise. A job that ended within a tick or two
+ * of the stall beginning is a real suspect; anything older is not.
+ */
+const BLAME_GRACE_MS = 250;
+
 /** What to blame for a stall that ended `lag` ms ago and is being reported now. */
 const blameFor = (lag: number): string => {
   if (currentWork) {
     return ` during ${currentWork}, ${((Date.now() - startedWorkAt) / 1000).toFixed(1)}s in so far`;
   }
-  // Did the job that just finished overlap the stall? If so it is the culprit,
-  // and saying "just finished" keeps it honest about the timing.
-  if (lastWork && lastWork.endedAt >= Date.now() - lag) {
+  // A job that blocked the loop itself clears its label when it finally returns,
+  // which is the *end* of the stall - so the suspect is one that ended just now.
+  // One that ended earlier was already over when the loop stopped turning.
+  if (lastWork && Date.now() - lastWork.endedAt <= BLAME_GRACE_MS) {
     return ` during ${lastWork.label}, which had just finished`;
   }
   return " with no job in flight - something outside the job runner held it";

@@ -621,9 +621,19 @@ const refreshWatches = (
       let timer: NodeJS.Timeout | undefined;
       const watcher = watch(dir, () => {
         clearTimeout(timer);
+        // Both of these read files and neither is quick, so they go through the
+        // runner rather than holding the loop back to back in one timer callback.
         timer = setTimeout(() => {
-          reconcileDirectory(dir, broadcast, broadcastPages);
-          refreshWatches(broadcast, broadcastPages);
+          runSoon([
+            {
+              label: `reconcile ${path.basename(path.dirname(dir))}/${path.basename(dir)}`,
+              run: () => reconcileDirectory(dir, broadcast, broadcastPages),
+            },
+            {
+              label: `rescan watches after ${path.basename(dir)} changed`,
+              run: () => refreshWatches(broadcast, broadcastPages),
+            },
+          ]);
         }, DEBOUNCE_MS);
       });
       watcher.on("error", () => {
@@ -724,10 +734,12 @@ const refreshWatches = (
   // IFCs - for every layout just adopted, before a single job runs. They are
   // inline and so invisible in a per-job breakdown; time them as a whole, since
   // at startup "every layout" is sixty-five of them.
-  // Zeroed first, so what is reported below belongs to this pass and not to
-  // whatever read a drawing since the last one. The counter is global, and the
-  // first version of this reported 569 reads for a pass that had made 245.
+  // Both zeroed first, so what is reported below belongs to this pass and not to
+  // whatever looked at a drawing since the last one. They are global counters,
+  // and forgetting one of them is how a pass with nothing to adopt reported "401
+  // cached" - swept up from the jobs. Zero them together or not at all.
   takeHeadReadCost();
+  takeDrawingSizeCost();
   const resized = timed(
     `checking drawing sizes for ${adopted.length} layout(s)`,
     () => new Set(adopted.filter((layoutPath) => drawingSizesChanged(layoutPath))),
@@ -796,9 +808,18 @@ export const startLayoutWatcher = (
 
   // Model values arrive in the background; fill templates in when they do.
   const stopValues = onLayoutValuesChanged((layoutPaths) => {
-    for (const layoutPath of layoutPaths) {
-      resyncLayoutAssets(layoutPath, broadcast, "template values changed", true);
-    }
+    // One per tick, like the adoption queue. Done in a plain loop this was the
+    // largest remaining stall of a cold start: a model's values arrive, and every
+    // layout that uses them is resynced without the loop ever turning. The
+    // measured blocks were 27s, 35s and 78s, none of which the queue could see
+    // because none of it went through the queue.
+    runSoon(
+      layoutPaths.map((layoutPath) => ({
+        label: `resync ${path.basename(layoutPath)} (values arrived)`,
+        run: () => resyncLayoutAssets(layoutPath, broadcast, "template values changed", true),
+      })),
+      layoutPaths.length > 1 ? "values queue" : undefined,
+    );
   });
 
   return () => {

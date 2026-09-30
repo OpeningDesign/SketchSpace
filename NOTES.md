@@ -900,6 +900,45 @@ reported 569 of them, having swept up the resync jobs' reads too. And **a
 guessed hot path is worth nothing**: the only reason this took an afternoon
 rather than a week was measuring the phases rather than reasoning about them.
 
+### The work that never went through the job runner
+
+With the size checks cached, a cold start still took 198.8s, and the queue said
+something impossible: `67 job(s) in 191.4s`, slowest job 0.9s. Sixty-seven jobs
+of under a second cannot take three minutes. The time was between them, and the
+watchdog had it - blocks of 27.5s, 22.1s, 35.8s and 78.4s.
+
+Two paths did their work in a plain loop outside the runner:
+
+- **Template values arriving.** `onLayoutValuesChanged` resynced every layout that
+  uses the model, in one tick. A model covers a dozen sheets, several models land
+  during a cold start, and the loop never yielded.
+- **The directory watcher**, which called `reconcileDirectory` and then
+  `refreshWatches` back to back in one debounced callback. That is also why
+  `scanLayouts` went from 69 calls to 339, and why passes with nothing to adopt
+  kept appearing in the log.
+
+Both now go through `runSoon`, one item per tick, named and timed like everything
+else. **This does not make the work shorter** - roughly three minutes of resyncing
+is still three minutes - it stops it being three minutes during which nothing is
+served. To actually shrink it, the next lever is why one resync costs ~1s: that is
+`syncPageWithLayout` re-reading and re-hashing whole drawings, which the size cache
+deliberately does not touch.
+
+And two corrections to the instrumentation itself, both of which had been quietly
+misreporting:
+
+- **The watchdog blamed the wrong job.** It named anything that finished within the
+  whole stall, so a 78s block accused whatever job ended in the last 78 seconds -
+  confident, specific and wrong. A job that blocks the loop itself clears its label
+  when it finally returns, which is the *end* of the stall, so the only real suspect
+  is one that ended within a tick of the report. Anything older gets "no job in
+  flight", which is the more useful answer anyway: the loop was held by something
+  outside the queue, which is exactly what was happening here.
+- **The second counter was never zeroed.** The pass reports head reads and cache
+  hits; only the head reads were reset beforehand, so a pass with nothing to adopt
+  reported "401 cached" that belonged to the jobs. The same mistake as the first
+  time, in the counter sitting next to it. Zero them together or not at all.
+
 ### An href is XML before it is a path
 
 `resolveHref` URL-decoded an href and resolved it. It never decoded XML character
