@@ -26,7 +26,7 @@
  * `data-drawing` is an IFC GlobalId - the stable anchor a redline should hang
  * off, since it survives regeneration, renaming and re-arrangement.
  */
-import { closeSync, openSync, readFileSync, readSync } from "node:fs";
+import { closeSync, openSync, readFileSync, readSync, statSync } from "node:fs";
 import path from "node:path";
 
 import { XMLParser } from "fast-xml-parser";
@@ -357,7 +357,53 @@ const readWholeLayout = (layoutPath: string, attempts = 4, waitMs = 40): string 
   return xml;
 };
 
+/**
+ * The last parse of each layout, so reading one twice in a pass costs one read.
+ *
+ * Eight call sites take a path, and the watch sweep goes through `assetDirsOf`
+ * for all sixty-five layouts on every pass - measured at 3479ms cold, and still
+ * 1581ms on a sweep with nothing to adopt, every thirty seconds, forever. That
+ * repeating cost is what this removes.
+ *
+ * It does not remove the first pass: the adopt loop seeds its change hash with its
+ * own `readFileSync`, which does not come through here, so a newly adopted layout
+ * is still read twice. Worth fixing only if it ever shows up in a measurement.
+ *
+ * Safe to share the object because nothing mutates a parsed layout - no caller
+ * sorts, pushes to, or assigns into `placements`, which is worth keeping true.
+ * Copy before mutating if that ever changes.
+ *
+ * In memory only. The cost being avoided is re-parsing within a session; across
+ * restarts the file has to be read anyway to know it has not changed.
+ */
+const parsed = new Map<string, { mtimeMs: number; size: number; layout: Layout }>();
+
+const parseCost = { hits: 0, misses: 0 };
+
+export const takeParseCost = (): typeof parseCost => {
+  const taken = { ...parseCost };
+  parseCost.hits = 0;
+  parseCost.misses = 0;
+  return taken;
+};
+
 export const parseLayout = (layoutPath: string): Layout => {
+  const key = process.platform === "win32" ? layoutPath.toLowerCase() : layoutPath;
+  let stats;
+  try {
+    stats = statSync(layoutPath);
+  } catch {
+    stats = undefined; // Let the read below produce the real error.
+  }
+  if (stats) {
+    const hit = parsed.get(key);
+    if (hit && hit.mtimeMs === stats.mtimeMs && hit.size === stats.size) {
+      parseCost.hits++;
+      return hit.layout;
+    }
+  }
+  parseCost.misses++;
+
   const xml = readWholeLayout(layoutPath);
   const parser = new XMLParser({
     ignoreAttributes: false,
@@ -435,7 +481,7 @@ export const parseLayout = (layoutPath: string): Layout => {
     }
   }
 
-  return {
+  const layout: Layout = {
     path: layoutPath,
     name: path.basename(layoutPath, path.extname(layoutPath)),
     widthMm: mm(svg["@_width"]),
@@ -443,4 +489,13 @@ export const parseLayout = (layoutPath: string): Layout => {
     placements,
     missing,
   };
+  // Keyed on how the file looked when it was read, not when it was stat'd above:
+  // a write landing between the two would otherwise be remembered as the old one.
+  try {
+    const after = statSync(layoutPath);
+    parsed.set(key, { mtimeMs: after.mtimeMs, size: after.size, layout });
+  } catch {
+    // Gone already. Nothing to key against, so it is simply not remembered.
+  }
+  return layout;
 };

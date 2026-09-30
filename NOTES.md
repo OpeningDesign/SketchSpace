@@ -1028,6 +1028,34 @@ the wrong place for a while. **A measurement that can be wrong should be built s
 its wrongness is visible** - here, by cross-checking one source against another:
 the job timings contradicted the watchdog, and that contradiction was the finding.
 
+### The sweep that re-read every layout, every thirty seconds
+
+Queueing the asset-directory watchers took adoption from 98.1s to 23.3s, and then
+showed that **queueing them** still cost 3479ms. `assetDirsOf` calls `parseLayout`,
+so the sweep read and re-parsed all sixty-five layouts to find out which
+directories to watch. The give-away was the next sweep:
+
+    watch pass took 1.6s: ... asset dirs queued 1581ms ... for 0 layout(s)
+
+Nothing to adopt, and still 1.58s - on a thirty-second timer, forever. A far
+better candidate for the hangs felt mid-session than anything at startup.
+
+`parseLayout` now memoises against the file's mtime and size, which fixes all eight
+call sites rather than this one. Sharing the object is safe because nothing mutates
+a parsed layout: no caller sorts, pushes to, or assigns into `placements`. That was
+checked rather than assumed, and it is worth keeping true - copy before mutating.
+
+It does not help the first pass, and the comment says so: the adopt loop seeds its
+change hash with its own `readFileSync`, which does not go through `parseLayout`, so
+a newly adopted layout is still read twice. Left alone until a measurement says
+otherwise.
+
+On Dropbox: pausing sync would remove the *contention* and give a clean baseline,
+which is worth knowing, but it would not remove the per-open cost. The project files
+are `ReparsePoint` placeholders, so every open goes through the filter driver whether
+sync is running or not - that is the 135ms against 0.80ms measured earlier, and it is
+inherent to the files living there.
+
 ### An href is XML before it is a path
 
 `resolveHref` URL-decoded an href and resolved it. It never decoded XML character

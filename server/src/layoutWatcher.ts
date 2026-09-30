@@ -23,7 +23,7 @@ import {
   resolveLayouts,
   sheetName,
 } from "./layoutImport.js";
-import { parseLayout, takeHeadReadCost } from "./bonsaiLayout.js";
+import { parseLayout, takeHeadReadCost, takeParseCost } from "./bonsaiLayout.js";
 import { takeDrawingSizeCost } from "./drawingSizes.js";
 import { takeLinkedAssetCost } from "./linkedAssets.js";
 import { onLayoutValuesChanged, primeLayoutValues } from "./ifcValues.js";
@@ -813,12 +813,15 @@ const refreshWatches = (
   // inline and so invisible in a per-job breakdown; time them as a whole, since
   // at startup "every layout" is sixty-five of them.
   const adoptedAt = Date.now();
+  // Taken once: it resets, so reading it twice reports zero for the second field.
+  const parses = takeParseCost();
   if (adoptedAt - phaseStarted >= 1000) {
     console.log(
       `[sketchspace] watch pass took ${((adoptedAt - phaseStarted) / 1000).toFixed(1)}s: ` +
         `scan ${scannedAt - phaseStarted}ms, layout dirs ${dirsWatchedAt - scannedAt}ms, ` +
         `asset dirs queued ${assetsWatchedAt - dirsWatchedAt}ms, ` +
-        `adopt ${adoptedAt - assetsWatchedAt}ms for ${adopted.length} layout(s)`,
+        `adopt ${adoptedAt - assetsWatchedAt}ms for ${adopted.length} layout(s), ` +
+        `layouts parsed ${parses.misses} read / ${parses.hits} cached`,
     );
   }
 
