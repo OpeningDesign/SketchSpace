@@ -900,6 +900,31 @@ reported 569 of them, having swept up the resync jobs' reads too. And **a
 guessed hot path is worth nothing**: the only reason this took an afternoon
 rather than a week was measuring the phases rather than reasoning about them.
 
+### An href is XML before it is a path
+
+`resolveHref` URL-decoded an href and resolved it. It never decoded XML character
+references, so a drawing whose name contains a character Bonsai escaped came out
+as a path nothing matches: the file is `PARTITION - W4AØF AND W6AØF - HEAD.svg`,
+the layout says `PARTITION - W4A&#216;F AND W6A&#216;F - HEAD.svg`, and `&#216;`
+is simply how XML spells `Ø`. Any conformant reader has to decode it, so this was
+ours, not Bonsai's.
+
+Ten drawings across five projects were silently absent from their A800 sheets.
+Nobody had reported a gap on the paper - it was found by a counter added for an
+unrelated performance question, which reported `10 missing` while measuring how
+many drawings a startup reads. Instrumentation earns its keep in ways it was not
+built for.
+
+Now decoded XML-first, then URL: an href can carry both, and `..%5Cdrawings%5CW4A&#216;F%20-%20HEAD.svg` is a real shape. Unknown and malformed references are
+left alone rather than mangled, because a filename may legitimately contain an
+ampersand. The writer never rewrites hrefs - it edits transforms and coordinates
+by string surgery - so there is no round trip that could turn `&#216;` into a
+literal `Ø` in the file.
+
+Rejected: turning on entity processing in the `XMLParser` options. It would fix
+this and change how every attribute and text node of every layout parses, which
+is far too broad a blast radius for a path-resolution bug.
+
 ### Git as the issuance log
 
 Ryan's project repos already encode issuances as commits

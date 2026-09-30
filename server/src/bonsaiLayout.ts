@@ -188,17 +188,58 @@ const parseTranslate = (transform: unknown): { tx: number; ty: number } => {
   return m ? { tx: num(m[1]), ty: num(m[2]) } : { tx: 0, ty: 0 };
 };
 
+/** The five entities XML predefines. Everything else in a name is numeric. */
+const XML_ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+};
+
+/**
+ * Turn XML character references back into the characters they stand for.
+ *
+ * A drawing whose name contains a character Bonsai chose to escape - `Ø` written
+ * as `&#216;` - is referenced that way in the layout, and the href has to be read
+ * as XML before it is read as a path. Unknown or malformed references are left
+ * alone: a filename may legitimately contain an ampersand, and mangling it would
+ * be worse than leaving it.
+ */
+const decodeXmlEntities = (text: string): string =>
+  text.replace(/&(#[0-9]+|#x[0-9a-fA-F]+|[a-zA-Z]+);/g, (whole, body: string) => {
+    if (body.startsWith("#")) {
+      const code = body[1] === "x" ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
+      if (!Number.isInteger(code) || code <= 0 || code > 0x10ffff) {
+        return whole;
+      }
+      try {
+        return String.fromCodePoint(code);
+      } catch {
+        return whole; // A lone surrogate, or otherwise not a character.
+      }
+    }
+    return XML_ENTITIES[body] ?? whole;
+  });
+
 /**
  * Layout hrefs are URL-encoded and, on Windows, use backslashes:
  *   "..%5Cdrawings%5CSITE%20PLAN%20-%20OVERALL.svg"
  * That is not portable, so normalise rather than trusting it.
+ *
+ * Two encodings, not one, and the XML layer comes off first. An href reaches us
+ * as the attribute's raw text, so a name like `PARTITION - W4AØF - HEAD.svg`
+ * arrives as `PARTITION - W4A&#216;F - HEAD.svg`, and resolving that gives a path
+ * no file has. Ten drawings across five projects were silently missing from their
+ * sheets because of it - found by counting how many referenced drawings did not
+ * exist, not by anybody noticing the gap on the paper.
  */
 export const resolveHref = (href: string, layoutDir: string): string => {
-  let decoded = href;
+  let decoded = decodeXmlEntities(href);
   try {
-    decoded = decodeURIComponent(href);
+    decoded = decodeURIComponent(decoded);
   } catch {
-    // Malformed escapes - fall back to the raw string.
+    // Malformed escapes - fall back to the entity-decoded string.
   }
   return path.resolve(layoutDir, decoded.replace(/\\/g, "/"));
 };

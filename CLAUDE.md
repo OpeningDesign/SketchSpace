@@ -136,7 +136,9 @@ explains the model. What will bite:
   un-done and is applied again on every pass.
 - Position is `<g transform>` *composed with* `<image x/y>`. Bonsai writes the
   latter, Inkscape the former; both count.
-- Layout hrefs are URL-encoded with backslashes (`..%5Cdrawings%5C...`).
+- Layout hrefs carry **two** encodings and `resolveHref` takes both off, XML
+  first: character references (`W4A&#216;F` for `W4AØF`) then URL escaping with
+  backslashes (`..%5Cdrawings%5C...`). Reading only one leaves a path no file has.
 - **Read SVG attributes by local name, never by prefix.** Inkscape rewrites
   namespace prefixes on save and not consistently - one sheet has `xlink:href`,
   another binds the same namespace as `ns3` and writes `ns3:href`. Matching the
