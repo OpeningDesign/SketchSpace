@@ -83,11 +83,16 @@ let startedWorkAt = 0;
  * reading only `currentWork` reports every stall as "no job in flight" - which is
  * what the first test of this did.
  */
-let lastWork: { label: string; endedAt: number } | null = null;
+let lastWork: { label: string; endedAt: number; tookMs: number } | null = null;
 
-export const setCurrentWork = (label: string | null): void => {
+/**
+ * @param tookMs How long the finishing job ran. Required to blame it for a stall:
+ *   a job that ran for 200ms cannot be the reason the loop stopped for 20s, and
+ *   saying it was is worse than saying nothing.
+ */
+export const setCurrentWork = (label: string | null, tookMs = 0): void => {
   if (label === null && currentWork !== null) {
-    lastWork = { label: currentWork, endedAt: Date.now() };
+    lastWork = { label: currentWork, endedAt: Date.now(), tookMs };
   }
   if (label !== null) {
     startedWorkAt = Date.now();
@@ -112,10 +117,20 @@ const blameFor = (lag: number): string => {
     return ` during ${currentWork}, ${((Date.now() - startedWorkAt) / 1000).toFixed(1)}s in so far`;
   }
   // A job that blocked the loop itself clears its label when it finally returns,
-  // which is the *end* of the stall - so the suspect is one that ended just now.
-  // One that ended earlier was already over when the loop stopped turning.
-  if (lastWork && Date.now() - lastWork.endedAt <= BLAME_GRACE_MS) {
-    return ` during ${lastWork.label}, which had just finished`;
+  // which is the *end* of the stall - so a suspect has to have ended just now AND
+  // to have run for most of the stall.
+  //
+  // Both halves are needed. Node drains the immediate queue before it runs timers,
+  // so after a stall this callback fires *after* the next batch of jobs, and the
+  // one that just finished is usually innocent. Checking only recency produced
+  // confident nonsense: "blocked for 20.0s during reconcile Bonsai/layouts" for a
+  // reconcile that the queue had timed at under half a second.
+  if (
+    lastWork &&
+    Date.now() - lastWork.endedAt <= BLAME_GRACE_MS &&
+    lastWork.tookMs >= lag / 2
+  ) {
+    return ` during ${lastWork.label}, which took ${(lastWork.tookMs / 1000).toFixed(1)}s of it`;
   }
   return " with no job in flight - something outside the job runner held it";
 };

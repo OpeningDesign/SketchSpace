@@ -999,6 +999,35 @@ values, so their output depends on more than the files, and they are a few KB ea
 `rendererFor` returns undefined for everything else, which is what the cache keys
 off.
 
+### Three more things off the critical path
+
+A cold start after a reboot, with the caches doing their job (`245 cached, 0
+read`; `842 cached, 1413 MB not read`), still took 98.1s to adopt, with no single
+job over 0.5s. So again: not the jobs.
+
+- **Creating the asset-directory watchers was 6542ms** - about thirty `watch()`
+  calls against Dropbox paths, the largest measured item left, and it sat right
+  after the port opened. Queued now, one directory per tick. A change arriving in
+  the second before its watcher exists is caught by the thirty-second sweep.
+- **The sweeps piled up.** Seven directory watchers and a thirty-second interval,
+  and after a reboot Dropbox touches everything: `scanLayouts ran 295x over 19470
+  page row(s)` against 71x when quiet. Every sweep sees the same directories, so
+  all but one is waste. `scheduleRefresh` keeps at most one pending.
+- **The watchdog was still naming innocent jobs**, and this is the third time it
+  has needed correcting. Node drains the immediate queue before it runs timers, so
+  after a stall the watchdog fires *after* the next batch of fast jobs, and blames
+  whichever one just finished. It reported "blocked for 20.0s during reconcile
+  Bonsai/layouts" for a reconcile the queue had timed at under half a second -
+  and there was no `slow:` line for it, which is what gave it away. A job now has
+  to have ended just now **and** to have run for at least half the stall, and it
+  reports how much of the stall it accounts for.
+
+The general lesson is about instrumentation, not layouts. Each of the three
+attribution bugs read as a confident, specific answer, and each sent me looking in
+the wrong place for a while. **A measurement that can be wrong should be built so
+its wrongness is visible** - here, by cross-checking one source against another:
+the job timings contradicted the watchdog, and that contradiction was the finding.
+
 ### An href is XML before it is a path
 
 `resolveHref` URL-decoded an href and resolved it. It never decoded XML character

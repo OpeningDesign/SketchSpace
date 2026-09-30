@@ -578,8 +578,10 @@ const runSoon = (jobs: Job[], queueLabel?: string): void => {
     } catch (error) {
       console.error(`[sketchspace] deferred work failed (${job.label}):`, error);
     } finally {
-      setCurrentWork(null);
       const elapsed = Date.now() - jobStarted;
+      // Handed over so the watchdog can tell whether this job could account for a
+      // stall, instead of blaming whichever one finished most recently.
+      setCurrentWork(null, elapsed);
       took.push({ label: job.label, ms: elapsed });
       // Named as it happens as well as in the summary, so a run that never
       // finishes still shows what it was chewing through.
@@ -607,6 +609,33 @@ const schedule = (layoutPath: string, broadcast: Broadcast): void => {
       syncLayout(layoutPath, broadcast);
     }, DEBOUNCE_MS),
   );
+};
+
+/**
+ * Whether a sweep is already queued, so overlapping requests collapse into one.
+ *
+ * Seven directory watchers plus a thirty-second interval, and after a reboot
+ * Dropbox touches everything: the sweeps piled up, and `scanLayouts` ran 295
+ * times over 19470 page rows in one startup against 71 when things were quiet.
+ * Each sweep sees the same directories, so all but one of them is waste.
+ */
+let refreshQueued = false;
+
+/** Ask for a sweep, at most one pending at a time. */
+const scheduleRefresh = (broadcast: Broadcast, broadcastPages: BroadcastPages): void => {
+  if (refreshQueued) {
+    return;
+  }
+  refreshQueued = true;
+  runSoon([
+    {
+      label: "rescan watches",
+      run: () => {
+        refreshQueued = false;
+        refreshWatches(broadcast, broadcastPages);
+      },
+    },
+  ]);
 };
 
 const refreshWatches = (
@@ -648,11 +677,8 @@ const refreshWatches = (
               label: `reconcile ${path.basename(path.dirname(dir))}/${path.basename(dir)}`,
               run: () => reconcileDirectory(dir, broadcast, broadcastPages),
             },
-            {
-              label: `rescan watches after ${path.basename(dir)} changed`,
-              run: () => refreshWatches(broadcast, broadcastPages),
-            },
           ]);
+          scheduleRefresh(broadcast, broadcastPages);
         }, DEBOUNCE_MS);
       });
       watcher.on("error", () => {
@@ -675,34 +701,63 @@ const refreshWatches = (
   const dirsWatchedAt = Date.now();
 
   // Watch the directories holding each layout's linked files.
+  //
+  // Deferred, one directory per tick. Creating these took 6542ms on a cold start -
+  // about thirty `watch()` calls against Dropbox paths, and by far the largest
+  // thing left on the way up - and none of it is needed before the first page can
+  // be served. A change arriving in the second before its watcher exists is
+  // covered by the thirty-second sweep.
+  const assetDirJobs: Job[] = [];
+  // Claimed as they are queued, since several layouts share a drawings directory
+  // and the watcher that would have deduplicated them does not exist yet.
+  const queuedAssetDirs = new Set<string>();
   for (const layoutPath of wanted.keys()) {
     for (const dir of assetDirsOf(layoutPath)) {
       const set = assetDirLayouts.get(dir) ?? new Set<string>();
       set.add(layoutPath);
       assetDirLayouts.set(dir, set);
 
-      if (assetWatchers.has(dir) || dirWatchers.has(dir) || !existsSync(dir)) {
+      if (
+        assetWatchers.has(dir) ||
+        dirWatchers.has(dir) ||
+        queuedAssetDirs.has(dir) ||
+        !existsSync(dir)
+      ) {
         continue;
       }
-      try {
-        let timer: NodeJS.Timeout | undefined;
-        const watcher = watch(dir, () => {
-          clearTimeout(timer);
-          timer = setTimeout(() => {
-            for (const lp of assetDirLayouts.get(dir) ?? []) {
-              resyncLayoutAssets(lp, broadcast);
-            }
-          }, DEBOUNCE_MS);
-        });
-        watcher.on("error", () => {
-          watcher.close();
-          assetWatchers.delete(dir);
-        });
-        assetWatchers.set(dir, watcher);
-        console.log(`[sketchspace] watching assets dir ${dir}`);
-      } catch (error) {
-        console.error(`[sketchspace] cannot watch ${dir}:`, error);
-      }
+      queuedAssetDirs.add(dir);
+      assetDirJobs.push({
+        label: `watch assets dir ${path.basename(dir)}`,
+        run: () => {
+          // Re-checked: a sweep may have got here first, or the directory may
+          // have gone between queueing and running.
+          if (assetWatchers.has(dir) || !existsSync(dir)) {
+            return;
+          }
+          try {
+            let timer: NodeJS.Timeout | undefined;
+            const watcher = watch(dir, () => {
+              clearTimeout(timer);
+              timer = setTimeout(() => {
+                runSoon(
+                  [...(assetDirLayouts.get(dir) ?? [])].map((lp) => ({
+                    label: `resync ${path.basename(lp)} (linked asset changed)`,
+                    run: () => resyncLayoutAssets(lp, broadcast),
+                  })),
+                );
+              }, DEBOUNCE_MS);
+            });
+            watcher.on("error", () => {
+              watcher.close();
+              assetWatchers.delete(dir);
+            });
+            assetWatchers.set(dir, watcher);
+            console.log(`[sketchspace] watching assets dir ${dir}`);
+          } catch (error) {
+            console.error(`[sketchspace] cannot watch ${dir}:`, error);
+          }
+        },
+      });
     }
   }
 
@@ -762,7 +817,7 @@ const refreshWatches = (
     console.log(
       `[sketchspace] watch pass took ${((adoptedAt - phaseStarted) / 1000).toFixed(1)}s: ` +
         `scan ${scannedAt - phaseStarted}ms, layout dirs ${dirsWatchedAt - scannedAt}ms, ` +
-        `asset dirs ${assetsWatchedAt - dirsWatchedAt}ms, ` +
+        `asset dirs queued ${assetsWatchedAt - dirsWatchedAt}ms, ` +
         `adopt ${adoptedAt - assetsWatchedAt}ms for ${adopted.length} layout(s)`,
     );
   }
@@ -815,6 +870,9 @@ const refreshWatches = (
   // One sheet per tick. At startup this is every sheet of every board, and a
   // full re-sync re-reads and re-hashes every drawing on a sheet - done in one
   // go it held the event loop long enough that nothing else could be served.
+  // After the resyncs, which are what a waiting page needs, and before the
+  // "adopted" report, so that message still means everything is set up.
+  jobs.push(...assetDirJobs);
   if (onSettled) {
     jobs.push({ label: "report adoption finished", run: onSettled });
   }
@@ -834,7 +892,7 @@ export const startLayoutWatcher = (
   refreshWatches(broadcast, broadcastPages, onSettled);
 
   const rescan = setInterval(
-    () => refreshWatches(broadcast, broadcastPages),
+    () => scheduleRefresh(broadcast, broadcastPages),
     RESCAN_MS,
   );
   rescan.unref();

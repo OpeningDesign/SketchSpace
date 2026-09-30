@@ -200,6 +200,12 @@ titleblocks". What bites:
   caches against mtime+size in `<dataDir>/drawing-sizes.json`; the second opens
   the file, which costs ~135ms cold on a Dropbox path against ~0.8ms on NTFS. Any
   new caller wanting a drawing's size goes through the cache.
+- **Nothing slow goes on the critical path; queue it.** `runSoon` is the only way
+  work should reach the filesystem at startup - watcher creation and sweeps
+  included. Overlapping sweeps collapse through `scheduleRefresh`.
+- **Cross-check the watchdog against the job timings.** It can say *that* the loop
+  stalled; it can only name a cause when that job's own duration accounts for the
+  stall. A blamed job with no matching `slow:` line means the blame is wrong.
 - **Startup timing is in the log, not in a new build.** Jobs are labelled and
   timed, the inline passes too, `scanLayouts` counts its own cost, and a lag
   watchdog names whatever held the event loop. Read `server.log` before adding
