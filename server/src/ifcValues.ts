@@ -609,6 +609,47 @@ export const getLayoutValues = (layoutPath: string): LayoutValues | null => {
  * Layouts in the affected project are re-rendered if anything changed, so a
  * disconnect falls back to the saved file's values by itself.
  */
+/**
+ * The first place two payloads differ, as a dotted path.
+ *
+ * Bonsai is asked for its template values every three seconds and the answer is
+ * compared with the last one, so an unchanged model should cost nothing. In
+ * practice every answer counts as a change and ten layouts are resynced each
+ * time, which is pure waste. Rather than guess at which field is unstable -
+ * reading the payload builder suggested none of them are - this says which one
+ * it was.
+ */
+const firstDifference = (a: unknown, b: unknown, at = ""): string | null => {
+  if (a === b) {
+    return null;
+  }
+  const bothObjects =
+    a !== null && b !== null && typeof a === "object" && typeof b === "object";
+  if (!bothObjects) {
+    const show = (v: unknown) => {
+      const text = typeof v === "string" ? v : JSON.stringify(v);
+      return text === undefined ? "undefined" : text.slice(0, 60);
+    };
+    return `${at || "(root)"}: ${show(a)} -> ${show(b)}`;
+  }
+  const keys = new Set([...Object.keys(a as object), ...Object.keys(b as object)]);
+  for (const key of keys) {
+    const found = firstDifference(
+      (a as Record<string, unknown>)[key],
+      (b as Record<string, unknown>)[key],
+      at ? `${at}.${key}` : key,
+    );
+    if (found) {
+      return found;
+    }
+  }
+  return null;
+};
+
+/** Reported at most this often per source, since the churn can be every poll. */
+const CHURN_REPORT_MS = 60_000;
+const churn = new Map<string, { since: number; changes: number }>();
+
 export const setLiveValues = (source: string, extract: IfcExtract | null): void => {
   const previous = live.get(source)?.extract;
   if (extract && extract.ifc) {
@@ -620,6 +661,25 @@ export const setLiveValues = (source: string, extract: IfcExtract | null): void 
   if (JSON.stringify(previous) === JSON.stringify(current)) {
     return;
   }
+
+  // Every change costs a resync of each layout in the project, so a payload that
+  // is never twice the same is expensive and invisible. Throttled, because the
+  // case worth reporting is precisely the one that would otherwise log endlessly.
+  if (previous && current) {
+    const seen = churn.get(source) ?? { since: Date.now(), changes: 0 };
+    seen.changes++;
+    if (Date.now() - seen.since >= CHURN_REPORT_MS) {
+      console.log(
+        `[sketchspace] live values from ${path.basename(current.ifc)} changed ` +
+          `${seen.changes} time(s) in the last ${Math.round((Date.now() - seen.since) / 1000)}s; ` +
+          `first difference this time: ${firstDifference(previous, current) ?? "none found"}`,
+      );
+      seen.since = Date.now();
+      seen.changes = 0;
+    }
+    churn.set(source, seen);
+  }
+
   const dirs = new Set(
     [previous?.ifc, current?.ifc].filter((ifc): ifc is string => Boolean(ifc)).map((ifc) =>
       path.dirname(ifc),

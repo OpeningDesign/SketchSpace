@@ -1177,6 +1177,35 @@ time: **a fault that is detected but only logged is, from the outside,
 indistinguishable from the tool simply not doing that.** If the code knows why,
 say it where the person is looking.
 
+### The panel's three empty states, and the churn behind them
+
+Read-only values can mean three different things, and they need three different
+things done. Until now they all said "Open this model in Blender to edit these
+values", which is wrong in two of them:
+
+| what is true | what to do |
+| --- | --- |
+| no Blender has this model open | open it |
+| a web server answers, no Blender behind it | restart the web connection - it outlived its Blender |
+| no web server at all | Properties → Scene → Collaboration → Web UI → Connect/Start |
+
+The third is the state Bonsai is left in whenever its server stops: a Blender
+sitting right there with the model loaded and nothing listening. It is only
+reported when some port was listed, so a machine that has never run Bonsai is not
+told its web server is missing.
+
+**And the churn.** Bonsai is polled every three seconds and the answer compared
+with the last, so an unchanged model should cost nothing - `setLiveValues` returns
+early when the payloads match. It never matches: ten layouts are resynced every
+poll, for ever, and `scanLayouts` reads 750 page rows each time. Reading the
+payload builder found nothing obviously unstable (the git revisions come from tags
+and commit dates; `north` is fixed), so rather than guess again the server now
+says which field moved - throttled to once a minute, because the case worth
+reporting is exactly the one that would otherwise log endlessly.
+
+That is the same move that found every other cause here: when reading has already
+failed twice, make the next run answer it.
+
 ### An href is XML before it is a path
 
 `resolveHref` URL-decoded an href and resolved it. It never decoded XML character

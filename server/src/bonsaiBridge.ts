@@ -468,6 +468,20 @@ export const whyNoLiveValues = (): string | null => {
       );
     }
   }
+
+  // Nothing reachable at all. Distinguished from "no model open in Blender"
+  // because it needs a different thing done: a Blender can be sitting right
+  // there with the model loaded and no web server running, which is the state
+  // Bonsai is left in whenever its server has been stopped. Only said when some
+  // port was listed, so a machine that has never run Bonsai is not told its web
+  // server is missing.
+  if (connections.size === 0 && listedPorts().length > 0) {
+    return (
+      "No Bonsai web server is running. In Blender: Properties -> Scene -> " +
+      "Collaboration -> Web UI -> Connect/Start websocket server. The panel " +
+      "should then show both 'Running on port' and 'Connected on port'."
+    );
+  }
   return null;
 };
 
