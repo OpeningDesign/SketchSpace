@@ -200,6 +200,11 @@ titleblocks". What bites:
   caches against mtime+size in `<dataDir>/drawing-sizes.json`; the second opens
   the file, which costs ~135ms cold on a Dropbox path against ~0.8ms on NTFS. Any
   new caller wanting a drawing's size goes through the cache.
+- **A reachable Bonsai web server does not mean a live Blender.** It outlives the
+  Blender that started it, so after a version switch the relay answers while the
+  operator queue behind it is dead. `whyNoLiveValues` turns that into the panel's
+  note; check a relay's creation time against the Blender you are running before
+  believing anything else.
 - **An opened page promotes its layout.** Jobs carry an optional `layout`, and
   `prioritiseLayout` moves that layout's pending work to the front of every
   draining queue; `collab` calls it on page join. Any new queued work about a

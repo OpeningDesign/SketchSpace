@@ -1146,6 +1146,37 @@ should announce itself. And the two diagnostics were written to tell apart the t
 ways the panel can look empty - no live Blender, versus a live Blender answering
 with nothing - which is what made one attempt enough.
 
+### Bonsai's web server outlives the Blender that started it
+
+Everything read-only in Blender 5.1, editable in 5.2, same sheet. The reason had
+nothing to do with the versions:
+
+| | started | from |
+| --- | --- | --- |
+| the relay (`python.exe`) | 12:15 | Blender **5.2**'s interpreter |
+| Blender | 19:51 | **5.1** |
+
+5.2 had been closed for hours and its web server was still running, so 5.1 found
+it in `running_pid.json` and reused it. SketchSpace connected, reported success,
+and sent `getTemplateValues` into a queue whose `check_operator_queue` timer had
+died with the Blender that owned it. No live values, so `fieldsFor` fell back to
+the saved file: values visible, every field read-only.
+
+The tell is a relay whose creation time predates the Blender you are using, or a
+`python.exe` whose path points at a different Blender's interpreter. Killing it is
+the fix; Bonsai starts a fresh one within about ten seconds.
+
+The bridge had noticed all along - "is not answering sheet template requests" was
+in the log, at 19:49:54. It just said it where nobody was looking, while the panel
+said "Open this model in Blender to edit these values", which is both wrong and
+confusing when Blender is open. `whyNoLiveValues` now puts the real reason in the
+panel's note.
+
+That is the same lesson as the watchdog and the read-only fallback, for the third
+time: **a fault that is detected but only logged is, from the outside,
+indistinguishable from the tool simply not doing that.** If the code knows why,
+say it where the person is looking.
+
 ### An href is XML before it is a path
 
 `resolveHref` URL-decoded an href and resolved it. It never decoded XML character

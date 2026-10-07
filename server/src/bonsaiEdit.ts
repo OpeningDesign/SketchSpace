@@ -28,6 +28,7 @@ import {
   askToAddToSheet,
   askToRemoveFromSheet,
   askToSetValues,
+  whyNoLiveValues,
   type BonsaiDrawing,
   type EditableField,
 } from "./bonsaiBridge.js";
@@ -173,7 +174,10 @@ export const fieldsFor = async (ref: ElementRef): Promise<ViewFields> => {
       sheet,
       view,
       connected: false,
-      note: "Open this model in Blender to edit these values.",
+      // "Open this model in Blender" is wrong, and misleading, when Blender is
+      // open and its web server is the thing at fault.
+      note:
+        whyNoLiveValues() ?? "Open this model in Blender to edit these values.",
       fields: names.map((name) => ({ name, value: values[name] ?? "", editable: false })),
     };
   }

@@ -436,6 +436,41 @@ const poll = () => {
   }
 };
 
+/**
+ * Why a layout has no live values despite Bonsai's web server being reachable.
+ *
+ * Bonsai's web server outlives the Blender that started it. Switch Blender
+ * versions and the new one finds the old server in `running_pid.json` and reuses
+ * it, so this connects, reports success, and sends requests into a queue whose
+ * `check_operator_queue` timer died with the Blender that owned it. Nothing
+ * answers, the values fall back to the saved file, and the panel goes read-only -
+ * which reads as a limitation of the tool rather than a stale relay.
+ *
+ * The bridge has always noticed and logged it. This is so the person looking at
+ * the panel is told too, in the terms that let them fix it.
+ *
+ * @returns a sentence for the panel, or null when this is not what is wrong.
+ */
+export const whyNoLiveValues = (): string | null => {
+  for (const connection of connections.values()) {
+    if (!connection.socket.connected) {
+      continue;
+    }
+    const silent = [...connection.blenders.values()].filter(
+      (b) => b.unanswered > UNANSWERED_BEFORE_WARNING,
+    );
+    if (silent.length > 0 || connection.blenders.size === 0) {
+      return (
+        `Bonsai's web server on port ${connection.port} is reachable, but no Blender ` +
+        `behind it is answering. That usually means the server outlived the Blender ` +
+        `that started it - common after switching Blender versions. Restart the web ` +
+        `connection in Bonsai, and these values become editable.`
+      );
+    }
+  }
+  return null;
+};
+
 const discover = () => {
   const now = Date.now();
   for (const port of listedPorts()) {
