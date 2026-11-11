@@ -487,6 +487,13 @@ resolves against Blender's working directory, not ours, so the whole command is
 absolute. A shell-style string here fails silently - the button simply does
 nothing.
 
+**The same goes for what `.env` says, not only the command.** The default
+`SKETCHSPACE_DATA_DIR=./data` resolved against Blender's working directory, so
+`open-layout.mjs` tried to create `C:\Program Files\Blender Foundation\Blender
+5.1\data`, died with `EPERM`, and the button opened nothing - the error only in
+Blender's system console. Run from a terminal it worked, because the terminal was
+somewhere writable. A relative data dir is now taken from the project root.
+
 **Do the database work before starting the server, not after.** Creating a board
 while nothing is running cannot race the store, and the server's startup
 reconcile then meets a finished board rather than one being assembled underneath

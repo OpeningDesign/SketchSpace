@@ -1,5 +1,9 @@
 import { randomBytes } from "node:crypto";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+/** Two levels up from both server/src (dev) and dist/server (built). */
+const projectRoot = fileURLToPath(new URL("../..", import.meta.url));
 
 const password = process.env.SKETCHSPACE_PASSWORD;
 if (!password) {
@@ -19,7 +23,11 @@ if (!sessionSecret) {
 
 export const config = {
   port: Number(process.env.PORT ?? 3000),
-  dataDir: process.env.SKETCHSPACE_DATA_DIR ?? "./data",
+  /**
+   * Relative to the project root, not the working directory: Bonsai runs
+   * open-layout.mjs from Blender's install directory.
+   */
+  dataDir: path.resolve(projectRoot, process.env.SKETCHSPACE_DATA_DIR ?? "./data"),
   password,
   sessionSecret,
   /** How long a login lasts. */

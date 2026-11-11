@@ -153,7 +153,7 @@ boxes directly, so no coordinate maths of our own is involved.
 | `SKETCHSPACE_PASSWORD`       | yes      | —         | The single shared password. The server refuses to boot without it. |
 | `SKETCHSPACE_SESSION_SECRET` | strongly | random    | Signs session cookies. If unset, everyone is logged out on restart. |
 | `PORT`                      | no       | `3000`    |                                                              |
-| `SKETCHSPACE_DATA_DIR`       | no       | `./data`  | `/data` in the container.                                    |
+| `SKETCHSPACE_DATA_DIR`       | no       | `./data`  | Relative paths are from the project root. `/data` in the container. |
 | `SKETCHSPACE_SECURE_COOKIE`  | no       | `false`   | Set `true` when behind TLS.                                  |
 | `SKETCHSPACE_PYTHON`         | no       | `python`  | A Python with `ifcopenshell`, to fill view-titles and titleblocks. See [Titles and titleblocks](#titles-and-titleblocks-show-real-values). |
 | `SKETCHSPACE_BONSAI_BRIDGE`  | no       | on        | `off` stops taking those values live from a running Bonsai.  |
